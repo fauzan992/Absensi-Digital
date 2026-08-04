@@ -1,0 +1,978 @@
+import express from 'express';
+import path from 'path';
+import { createServer as createViteServer } from 'vite';
+import { INITIAL_CLASSES, INITIAL_TEACHERS, INITIAL_STUDENTS, generateInitialAttendance } from './src/data/mockDatabase';
+import { ClassRoom, Teacher, Student, AttendanceRecord, User, SchoolSettings, HolidayConfig } from './src/types';
+import {
+  getCurrentSheetsConfig,
+  setCurrentSheetsConfig,
+  initGoogleSpreadsheet,
+  pushAllToSpreadsheet,
+  pullAllFromSpreadsheet,
+  appendAttendanceToSpreadsheet
+} from './src/services/sheetsServer';
+import {
+  loadSupabaseConfig,
+  saveSupabaseConfig,
+  saveLocalDBBackup,
+  readLocalDBBackup,
+  testSupabaseConnection,
+  pushAllToSupabase,
+  pullAllFromSupabase,
+  uploadStudentPhotoToSupabase,
+  SUPABASE_SQL_SCHEMA
+} from './src/services/supabaseService';
+
+// In-memory data store for the application
+let classesDB: ClassRoom[] = [...INITIAL_CLASSES];
+let teachersDB: Teacher[] = [...INITIAL_TEACHERS];
+let studentsDB: Student[] = [...INITIAL_STUDENTS];
+let attendanceDB: AttendanceRecord[] = generateInitialAttendance();
+let schoolSettingsDB: SchoolSettings = {
+  jamMasuk: '07:00',
+  batasTerlambat: '07:15',
+  jamPulang: '14:00',
+  batasPulang: '16:00',
+  hariLiburRutin: [0, 6], // 0 = Minggu, 6 = Sabtu
+  hariLiburKhusus: [
+    { id: 'hol-1', date: '2026-08-17', name: 'HUT Kemerdekaan RI ke-81', isNational: true },
+    { id: 'hol-2', date: '2026-05-01', name: 'Hari Buruh Nasional', isNational: true },
+    { id: 'hol-3', date: '2026-06-01', name: 'Hari Lahir Pancasila', isNational: true },
+    { id: 'hol-4', date: '2026-12-25', name: 'Hari Raya Natal & Libur Semester', isNational: true }
+  ],
+  allowAbsenLibur: false
+};
+
+// Load local persistent backup if exists
+const savedBackup = readLocalDBBackup();
+if (savedBackup) {
+  if (savedBackup.classes && savedBackup.classes.length > 0) classesDB = savedBackup.classes;
+  if (savedBackup.teachers && savedBackup.teachers.length > 0) teachersDB = savedBackup.teachers;
+  if (savedBackup.students && savedBackup.students.length > 0) studentsDB = savedBackup.students;
+  if (savedBackup.attendance && savedBackup.attendance.length > 0) attendanceDB = savedBackup.attendance;
+  if (savedBackup.settings) schoolSettingsDB = { ...schoolSettingsDB, ...savedBackup.settings };
+} else {
+  // Save initial mock data to local backup
+  saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, settings: schoolSettingsDB });
+}
+
+// Helper to save local DB & background push to Supabase if enabled
+const persistData = () => {
+  saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, settings: schoolSettingsDB });
+  const cfg = loadSupabaseConfig();
+  if (cfg.autoSync && cfg.url && cfg.anonKey && cfg.status === 'connected') {
+    pushAllToSupabase({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB })
+      .catch(err => console.error('Auto-sync to Supabase background error:', err));
+  }
+};
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+  // Helper for current date in YYYY-MM-DD
+  const getTodayStr = () => {
+    const d = new Date();
+    return d.toISOString().split('T')[0];
+  };
+
+  // Helper for current time in HH:mm:ss
+  const getTimeStr = () => {
+    const d = new Date();
+    return d.toTimeString().split(' ')[0];
+  };
+
+  // Helper: Check if date is a holiday (routine or custom)
+  const checkIsHoliday = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const dayOfWeek = d.getDay(); // 0 = Minggu, 6 = Sabtu
+    const isRoutine = schoolSettingsDB.hariLiburRutin.includes(dayOfWeek);
+    const customHoliday = schoolSettingsDB.hariLiburKhusus.find(h => h.date === dateStr);
+
+    if (customHoliday) {
+      return { isHoliday: true, name: customHoliday.name };
+    }
+    if (isRoutine) {
+      const daysName = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+      return { isHoliday: true, name: `Libur Rutin (${daysName[dayOfWeek]})` };
+    }
+    return { isHoliday: false, name: '' };
+  };
+
+  // Helper: Check if scan time is late
+  const checkIsLate = (timeStr: string) => {
+    if (!schoolSettingsDB.batasTerlambat) return false;
+    const currentHHMM = timeStr.substring(0, 5);
+    return currentHHMM > schoolSettingsDB.batasTerlambat;
+  };
+
+  // Helper: Check if checkout time is early dismissal
+  const checkIsEarlyDismissal = (timeStr: string) => {
+    if (!schoolSettingsDB.jamPulang) return false;
+    const currentHHMM = timeStr.substring(0, 5);
+    return currentHHMM < schoolSettingsDB.jamPulang;
+  };
+
+  // ==================== API ROUTES ====================
+
+  // Settings Endpoints
+  app.get('/api/settings', (req, res) => {
+    res.json({ success: true, settings: schoolSettingsDB });
+  });
+
+  app.post('/api/settings', (req, res) => {
+    const { jamMasuk, batasTerlambat, jamPulang, batasPulang, hariLiburRutin, hariLiburKhusus, allowAbsenLibur } = req.body;
+
+    schoolSettingsDB = {
+      jamMasuk: jamMasuk || schoolSettingsDB.jamMasuk,
+      batasTerlambat: batasTerlambat || schoolSettingsDB.batasTerlambat,
+      jamPulang: jamPulang || schoolSettingsDB.jamPulang,
+      batasPulang: batasPulang || schoolSettingsDB.batasPulang,
+      hariLiburRutin: Array.isArray(hariLiburRutin) ? hariLiburRutin : schoolSettingsDB.hariLiburRutin,
+      hariLiburKhusus: Array.isArray(hariLiburKhusus) ? hariLiburKhusus : schoolSettingsDB.hariLiburKhusus,
+      allowAbsenLibur: typeof allowAbsenLibur === 'boolean' ? allowAbsenLibur : schoolSettingsDB.allowAbsenLibur
+    };
+
+    persistData();
+    res.json({ success: true, settings: schoolSettingsDB, message: 'Pengaturan jam presensi & hari libur berhasil diperbarui!' });
+  });
+
+  // Health check
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', school: "SMA Islam Ra'iyatul Husnan" });
+  });
+
+  // Login authentication
+  app.post('/api/auth/login', (req, res) => {
+    const { role, username, password } = req.body;
+
+    if (!role || !username) {
+      return res.status(400).json({ error: 'Role dan ID/Username/NISN wajib diisi.' });
+    }
+
+    if (role === 'admin') {
+      if (!password) {
+        return res.status(400).json({ error: 'Password Admin wajib diisi.' });
+      }
+      if ((username === 'admin' || username === 'admin@smaislam.sch.id') && password === 'admin123') {
+        const adminUser: User = {
+          id: 'admin-1',
+          username: 'admin',
+          name: 'Administrator Utama',
+          role: 'admin'
+        };
+        return res.json({ success: true, user: adminUser });
+      } else {
+        return res.status(401).json({ error: 'Username atau password Admin salah! (Default: admin / admin123)' });
+      }
+    }
+
+    if (role === 'guru') {
+      if (!password) {
+        return res.status(400).json({ error: 'Password Guru wajib diisi.' });
+      }
+      const teacher = teachersDB.find(
+        t => (t.username.toLowerCase() === username.toLowerCase() || t.nip === username)
+      );
+
+      if (teacher && (password === 'guru123' || password === teacher.nip.slice(-6) || password === '123')) {
+        const teacherUser: User = {
+          id: teacher.id,
+          username: teacher.username,
+          name: teacher.name,
+          role: 'guru',
+          nip: teacher.nip,
+          classId: teacher.assignedClassId,
+          className: teacher.assignedClassName
+        };
+        return res.json({ success: true, user: teacherUser });
+      } else {
+        return res.status(401).json({ error: 'NIP/Username atau password Guru salah! (Default pass: guru123)' });
+      }
+    }
+
+    if (role === 'wali') {
+      const student = studentsDB.find(s => s.nisn === username.trim());
+
+      if (student) {
+        const waliUser: User = {
+          id: `wali-${student.id}`,
+          username: student.nisn,
+          name: student.parentName || `Wali dari ${student.name}`,
+          role: 'wali',
+          nisn: student.nisn,
+          childNisn: student.nisn,
+          childName: student.name,
+          className: student.className
+        };
+        return res.json({ success: true, user: waliUser, student });
+      } else {
+        return res.status(401).json({ error: `NISN Siswa ${username} tidak ditemukan dalam database sekolah.` });
+      }
+    }
+
+    return res.status(400).json({ error: 'Role pengguna tidak valid.' });
+  });
+
+  // Get master data
+  app.get('/api/master/data', (req, res) => {
+    res.json({
+      classes: classesDB,
+      teachers: teachersDB,
+      students: studentsDB
+    });
+  });
+
+  // Student CRUD
+  app.post('/api/master/students', (req, res) => {
+    const { nisn, name, gender, classId, parentName, parentPhone, photoUrl } = req.body;
+
+    if (!nisn || !name || !classId) {
+      return res.status(400).json({ error: 'NISN, Nama, dan Kelas wajib diisi.' });
+    }
+
+    if (studentsDB.some(s => s.nisn === nisn)) {
+      return res.status(400).json({ error: `Siswa dengan NISN ${nisn} sudah ada!` });
+    }
+
+    const selectedClass = classesDB.find(c => c.id === classId);
+    const newStudent: Student = {
+      id: `std-${Date.now()}`,
+      nisn: nisn.trim(),
+      name: name.trim(),
+      gender: gender || 'L',
+      classId,
+      className: selectedClass?.name || 'Unassigned',
+      parentName: parentName || 'Wali Siswa',
+      parentPhone: parentPhone || '-',
+      photoUrl: photoUrl || '',
+      defaultPassword: '123'
+    };
+
+    studentsDB.push(newStudent);
+
+    // Update student count in class
+    if (selectedClass) {
+      selectedClass.studentCount = studentsDB.filter(s => s.classId === classId).length;
+    }
+
+    persistData();
+    res.json({ success: true, student: newStudent, message: 'Data siswa berhasil ditambahkan!' });
+  });
+
+  app.put('/api/master/students/:id', (req, res) => {
+    const { id } = req.params;
+    const index = studentsDB.findIndex(s => s.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({ error: 'Siswa tidak ditemukan.' });
+    }
+
+    const { nisn, name, gender, classId, parentName, parentPhone, photoUrl } = req.body;
+    const selectedClass = classesDB.find(c => c.id === classId);
+
+    studentsDB[index] = {
+      ...studentsDB[index],
+      nisn: nisn || studentsDB[index].nisn,
+      name: name || studentsDB[index].name,
+      gender: gender || studentsDB[index].gender,
+      classId: classId || studentsDB[index].classId,
+      className: selectedClass ? selectedClass.name : studentsDB[index].className,
+      parentName: parentName || studentsDB[index].parentName,
+      parentPhone: parentPhone || studentsDB[index].parentPhone,
+      photoUrl: photoUrl !== undefined ? photoUrl : studentsDB[index].photoUrl
+    };
+
+    // Update counts
+    classesDB.forEach(c => {
+      c.studentCount = studentsDB.filter(s => s.classId === c.id).length;
+    });
+
+    persistData();
+    res.json({ success: true, student: studentsDB[index], message: 'Data siswa berhasil diperbarui!' });
+  });
+
+  app.delete('/api/master/students/:id', (req, res) => {
+    const { id } = req.params;
+    const student = studentsDB.find(s => s.id === id);
+    if (!student) {
+      return res.status(404).json({ error: 'Siswa tidak ditemukan.' });
+    }
+
+    studentsDB = studentsDB.filter(s => s.id !== id);
+
+    // Update class counts
+    classesDB.forEach(c => {
+      c.studentCount = studentsDB.filter(s => s.classId === c.id).length;
+    });
+
+    persistData();
+    res.json({ success: true, message: 'Data siswa berhasil dihapus!' });
+  });
+
+  // Upload student 3x4 photo (Supabase Storage with Base64 fallback)
+  app.post('/api/upload/student-photo', async (req, res) => {
+    try {
+      const { base64Data, nisn } = req.body;
+      if (!base64Data) {
+        return res.status(400).json({ error: 'Data foto 3x4 wajib disertakan.' });
+      }
+
+      const uploadResult = await uploadStudentPhotoToSupabase(base64Data, nisn || '0000000000');
+      res.json({
+        success: true,
+        photoUrl: uploadResult.url,
+        isSupabase: uploadResult.isSupabase,
+        message: uploadResult.isSupabase 
+          ? 'Pas foto berhasil diunggah ke Supabase Storage bucket!' 
+          : 'Pas foto disimpan (Base64 fallback). Hubungkan Supabase untuk penyimpanan CDN cloud.'
+      });
+    } catch (err: any) {
+      console.error('Error photo upload endpoint:', err);
+      res.status(500).json({ error: err?.message || 'Gagal memproses unggah pas foto.' });
+    }
+  });
+
+  // Teacher CRUD
+  app.post('/api/master/teachers', (req, res) => {
+    const { nip, name, gender, username, subject, assignedClassId } = req.body;
+
+    if (!nip || !name || !username) {
+      return res.status(400).json({ error: 'NIP, Nama, dan Username wajib diisi.' });
+    }
+
+    const assignedClass = classesDB.find(c => c.id === assignedClassId);
+    const newTeacher: Teacher = {
+      id: `tch-${Date.now()}`,
+      nip: nip.trim(),
+      name: name.trim(),
+      gender: gender || 'L',
+      username: username.trim().toLowerCase(),
+      subject: subject || 'Mata Pelajaran',
+      assignedClassId: assignedClassId || undefined,
+      assignedClassName: assignedClass?.name || undefined
+    };
+
+    teachersDB.push(newTeacher);
+
+    if (assignedClass) {
+      assignedClass.teacherId = newTeacher.id;
+      assignedClass.teacherName = newTeacher.name;
+    }
+
+    persistData();
+    res.json({ success: true, teacher: newTeacher, message: 'Data guru berhasil ditambahkan!' });
+  });
+
+  app.put('/api/master/teachers/:id', (req, res) => {
+    const { id } = req.params;
+    const index = teachersDB.findIndex(t => t.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({ error: 'Guru tidak ditemukan.' });
+    }
+
+    const { nip, name, gender, username, subject, assignedClassId } = req.body;
+    const assignedClass = classesDB.find(c => c.id === assignedClassId);
+
+    teachersDB[index] = {
+      ...teachersDB[index],
+      nip: nip || teachersDB[index].nip,
+      name: name || teachersDB[index].name,
+      gender: gender || teachersDB[index].gender,
+      username: username ? username.toLowerCase() : teachersDB[index].username,
+      subject: subject || teachersDB[index].subject,
+      assignedClassId: assignedClassId || undefined,
+      assignedClassName: assignedClass ? assignedClass.name : undefined
+    };
+
+    if (assignedClass) {
+      assignedClass.teacherId = teachersDB[index].id;
+      assignedClass.teacherName = teachersDB[index].name;
+    }
+
+    persistData();
+    res.json({ success: true, teacher: teachersDB[index], message: 'Data guru berhasil diperbarui!' });
+  });
+
+  app.delete('/api/master/teachers/:id', (req, res) => {
+    const { id } = req.params;
+    teachersDB = teachersDB.filter(t => t.id !== id);
+    classesDB.forEach(c => {
+      if (c.teacherId === id) {
+        c.teacherId = undefined;
+        c.teacherName = undefined;
+      }
+    });
+    persistData();
+    res.json({ success: true, message: 'Data guru berhasil dihapus!' });
+  });
+
+  // Class CRUD
+  app.post('/api/master/classes', (req, res) => {
+    const { name, gradeLevel, teacherId } = req.body;
+    if (!name || !gradeLevel) {
+      return res.status(400).json({ error: 'Nama Kelas dan Tingkat wajib diisi.' });
+    }
+
+    const teacher = teachersDB.find(t => t.id === teacherId);
+    const newClass: ClassRoom = {
+      id: `cls-${Date.now()}`,
+      name: name.trim(),
+      gradeLevel,
+      teacherId: teacher?.id,
+      teacherName: teacher?.name,
+      studentCount: 0
+    };
+
+    classesDB.push(newClass);
+    persistData();
+    res.json({ success: true, class: newClass, message: 'Kelas berhasil dibuat!' });
+  });
+
+  // Attendance Scanning & Recording
+  app.post('/api/attendance/scan', (req, res) => {
+    const { nisn, status = 'Hadir', notes = '', recordedBy = 'Sistem Barcode', recordedByRole = 'admin' } = req.body;
+
+    if (!nisn) {
+      return res.status(400).json({ error: 'Kode Barcode / NISN wajib diisi.' });
+    }
+
+    const student = studentsDB.find(s => s.nisn.trim() === nisn.trim());
+    if (!student) {
+      return res.status(444).json({ error: `NISN "${nisn}" tidak terdaftar di sistem SMA Islam Ra'iyatul Husnan!` });
+    }
+
+    const todayStr = getTodayStr();
+    const timeStr = getTimeStr();
+
+    // Check Holiday Status
+    const holidayCheck = checkIsHoliday(todayStr);
+    if (holidayCheck.isHoliday && !schoolSettingsDB.allowAbsenLibur) {
+      return res.status(403).json({
+        error: `Hari ini adalah HARI LIBUR: "${holidayCheck.name}". Sistem presensi non-aktif.`
+      });
+    }
+
+    // Check Late Status
+    let autoNotes = notes || '';
+    if (status === 'Hadir' && checkIsLate(timeStr)) {
+      const lateTag = `[TERLAMBAT] (Batas: ${schoolSettingsDB.batasTerlambat} WIB)`;
+      if (!autoNotes.includes(lateTag)) {
+        autoNotes = autoNotes ? `${autoNotes} | ${lateTag}` : lateTag;
+      }
+    }
+
+    // Check if record exists for today
+    const existingIndex = attendanceDB.findIndex(a => a.nisn === student.nisn && a.date === todayStr);
+
+    let record: AttendanceRecord;
+    if (existingIndex !== -1) {
+      attendanceDB[existingIndex] = {
+        ...attendanceDB[existingIndex],
+        status: status as any,
+        time: status === 'Hadir' ? timeStr : '-',
+        notes: autoNotes || attendanceDB[existingIndex].notes,
+        recordedBy,
+        recordedByRole
+      };
+      record = attendanceDB[existingIndex];
+    } else {
+      record = {
+        id: `att-${todayStr}-${student.nisn}`,
+        studentId: student.id,
+        nisn: student.nisn,
+        studentName: student.name,
+        classId: student.classId,
+        className: student.className,
+        date: todayStr,
+        time: status === 'Hadir' ? timeStr : '-',
+        status: status as any,
+        notes: autoNotes,
+        recordedBy,
+        recordedByRole
+      };
+      attendanceDB.unshift(record);
+    }
+
+    persistData();
+    res.json({
+      success: true,
+      record,
+      student,
+      message: `Presensi ${student.name} (${student.className}) berhasil dicatat sebagai "${status}" pada pukul ${timeStr} WIB.`
+    });
+  });
+
+  // Bulk manual attendance submission
+  app.post('/api/attendance/manual', (req, res) => {
+    const { records, date, recordedBy, recordedByRole } = req.body;
+    if (!Array.isArray(records)) {
+      return res.status(400).json({ error: 'Format data presensi tidak valid.' });
+    }
+
+    const targetDate = date || getTodayStr();
+    const currentTime = getTimeStr();
+
+    records.forEach((item: { nisn: string; status: any; notes?: string }) => {
+      const student = studentsDB.find(s => s.nisn === item.nisn);
+      if (!student) return;
+
+      const existingIndex = attendanceDB.findIndex(a => a.nisn === item.nisn && a.date === targetDate);
+      if (existingIndex !== -1) {
+        attendanceDB[existingIndex] = {
+          ...attendanceDB[existingIndex],
+          status: item.status,
+          time: item.status === 'Hadir' ? (attendanceDB[existingIndex].time !== '-' ? attendanceDB[existingIndex].time : currentTime) : '-',
+          notes: item.notes || '',
+          recordedBy: recordedBy || 'Guru Kelas',
+          recordedByRole: recordedByRole || 'guru'
+        };
+      } else {
+        attendanceDB.unshift({
+          id: `att-${targetDate}-${student.nisn}`,
+          studentId: student.id,
+          nisn: student.nisn,
+          studentName: student.name,
+          classId: student.classId,
+          className: student.className,
+          date: targetDate,
+          time: item.status === 'Hadir' ? currentTime : '-',
+          status: item.status,
+          notes: item.notes || '',
+          recordedBy: recordedBy || 'Guru Kelas',
+          recordedByRole: recordedByRole || 'guru'
+        });
+      }
+    });
+
+    persistData();
+    res.json({ success: true, message: `Presensi ${records.length} siswa berhasil disimpan.` });
+  });
+
+  // Bulk dismissal / checkout attendance submission (Absensi Pulang Jam Terakhir)
+  app.post('/api/attendance/checkout', (req, res) => {
+    const { classId, date, recordedBy, students } = req.body;
+    if (!Array.isArray(students)) {
+      return res.status(400).json({ error: 'Data absensi jam pulang tidak valid.' });
+    }
+
+    const targetDate = date || getTodayStr();
+    const currentTime = getTimeStr();
+    let updatedCount = 0;
+
+    students.forEach((item: { nisn: string; checkedOut: boolean; notes?: string }) => {
+      const student = studentsDB.find(s => s.nisn === item.nisn);
+      if (!student) return;
+
+      const existingIndex = attendanceDB.findIndex(a => a.nisn === item.nisn && a.date === targetDate);
+      const isCheckedOut = !!item.checkedOut;
+      const isEarly = checkIsEarlyDismissal(currentTime);
+      const computedCheckOutStatus = isCheckedOut
+        ? (isEarly ? 'Bolos / Pulang Awal' : 'Pulang')
+        : 'Bolos / Pulang Awal';
+
+      if (existingIndex !== -1) {
+        attendanceDB[existingIndex] = {
+          ...attendanceDB[existingIndex],
+          checkOutTime: isCheckedOut ? currentTime : '-',
+          checkOutStatus: computedCheckOutStatus,
+          checkOutBy: recordedBy || 'Guru Jam Terakhir',
+          notes: item.notes
+            ? (attendanceDB[existingIndex].notes ? `${attendanceDB[existingIndex].notes} | Jam Pulang: ${item.notes}` : `Jam Pulang: ${item.notes}`)
+            : attendanceDB[existingIndex].notes
+        };
+        updatedCount++;
+      } else {
+        attendanceDB.unshift({
+          id: `att-${targetDate}-${student.nisn}`,
+          studentId: student.id,
+          nisn: student.nisn,
+          studentName: student.name,
+          classId: student.classId,
+          className: student.className,
+          date: targetDate,
+          time: '-',
+          status: isCheckedOut ? 'Hadir' : 'Alpa',
+          recordedBy: recordedBy || 'Guru Jam Terakhir',
+          recordedByRole: 'guru',
+          checkOutTime: isCheckedOut ? currentTime : '-',
+          checkOutStatus: computedCheckOutStatus,
+          checkOutBy: recordedBy || 'Guru Jam Terakhir',
+          notes: item.notes ? `Jam Pulang: ${item.notes}` : ''
+        });
+        updatedCount++;
+      }
+    });
+
+    const targetClass = classesDB.find(c => c.id === classId);
+    const className = targetClass ? targetClass.name : '';
+
+    persistData();
+    res.json({
+      success: true,
+      message: `Absensi jam pulang ${className ? 'Kelas ' + className : ''} (${updatedCount} siswa) berhasil disimpan pada pukul ${currentTime} WIB.`
+    });
+  });
+
+  // Get attendance records
+  app.get('/api/attendance', (req, res) => {
+    const { classId, startDate, endDate, nisn, status, search } = req.query;
+
+    let filtered = [...attendanceDB];
+
+    if (classId && classId !== 'all') {
+      filtered = filtered.filter(a => a.classId === classId);
+    }
+
+    if (nisn) {
+      filtered = filtered.filter(a => a.nisn === nisn);
+    }
+
+    if (startDate) {
+      filtered = filtered.filter(a => a.date >= (startDate as string));
+    }
+
+    if (endDate) {
+      filtered = filtered.filter(a => a.date <= (endDate as string));
+    }
+
+    if (status && status !== 'all') {
+      filtered = filtered.filter(a => a.status === status);
+    }
+
+    if (search) {
+      const q = (search as string).toLowerCase();
+      filtered = filtered.filter(a => a.studentName.toLowerCase().includes(q) || a.nisn.includes(q) || a.className.toLowerCase().includes(q));
+    }
+
+    // Sort by date desc then time desc
+    filtered.sort((a, b) => {
+      if (b.date !== a.date) return b.date.localeCompare(a.date);
+      return b.time.localeCompare(a.time);
+    });
+
+    res.json({ records: filtered, total: filtered.length });
+  });
+
+  // Import Batch Students
+  app.post('/api/import/students', (req, res) => {
+    const { students } = req.body;
+    if (!Array.isArray(students) || students.length === 0) {
+      return res.status(400).json({ error: 'Data import siswa kosong atau tidak valid.' });
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    students.forEach(item => {
+      if (!item.nisn || !item.name) return;
+
+      let cls = classesDB.find(c => c.name.toLowerCase() === (item.className || '').toLowerCase() || c.id === item.classId);
+      if (!cls) {
+        // Default to first class if not found
+        cls = classesDB[0];
+      }
+
+      const existingIndex = studentsDB.findIndex(s => s.nisn === String(item.nisn).trim());
+      if (existingIndex !== -1) {
+        studentsDB[existingIndex] = {
+          ...studentsDB[existingIndex],
+          name: item.name || studentsDB[existingIndex].name,
+          gender: (item.gender === 'P' || item.gender === 'Perempuan') ? 'P' : 'L',
+          classId: cls.id,
+          className: cls.name,
+          parentName: item.parentName || studentsDB[existingIndex].parentName,
+          parentPhone: item.parentPhone || studentsDB[existingIndex].parentPhone
+        };
+        updatedCount++;
+      } else {
+        studentsDB.push({
+          id: `std-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          nisn: String(item.nisn).trim(),
+          name: item.name.trim(),
+          gender: (item.gender === 'P' || item.gender === 'Perempuan') ? 'P' : 'L',
+          classId: cls.id,
+          className: cls.name,
+          parentName: item.parentName || 'Wali Murid',
+          parentPhone: item.parentPhone || '-',
+          defaultPassword: '123'
+        });
+        addedCount++;
+      }
+    });
+
+    // Update class counts
+    classesDB.forEach(c => {
+      c.studentCount = studentsDB.filter(s => s.classId === c.id).length;
+    });
+
+    res.json({
+      success: true,
+      message: `Import Berhasil! ${addedCount} data siswa baru ditambahkan, ${updatedCount} data diperbarui.`
+    });
+  });
+
+  // Import Batch Teachers
+  app.post('/api/import/teachers', (req, res) => {
+    const { teachers } = req.body;
+    if (!Array.isArray(teachers) || teachers.length === 0) {
+      return res.status(400).json({ error: 'Data import guru kosong atau tidak valid.' });
+    }
+
+    let count = 0;
+    teachers.forEach(item => {
+      if (!item.nip || !item.name) return;
+      const existing = teachersDB.find(t => t.nip === String(item.nip).trim());
+      if (!existing) {
+        teachersDB.push({
+          id: `tch-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          nip: String(item.nip).trim(),
+          name: item.name.trim(),
+          gender: item.gender === 'P' ? 'P' : 'L',
+          username: (item.username || item.name.split(' ')[0]).toLowerCase(),
+          subject: item.subject || 'Guru Pengajar'
+        });
+        count++;
+      }
+    });
+
+    res.json({ success: true, message: `Import Berhasil! ${count} data guru baru ditambahkan.` });
+  });
+
+  // Reset demo database to initial state
+  app.post('/api/reset-data', (req, res) => {
+    classesDB = [...INITIAL_CLASSES];
+    teachersDB = [...INITIAL_TEACHERS];
+    studentsDB = [...INITIAL_STUDENTS];
+    attendanceDB = generateInitialAttendance();
+    res.json({ success: true, message: 'Database telah direset ke kondisi awal!' });
+  });
+
+  // ==================== GOOGLE SHEETS DATABASE ENDPOINTS ====================
+
+  // Get current spreadsheet configuration status
+  app.get('/api/sheets/status', (req, res) => {
+    res.json(getCurrentSheetsConfig());
+  });
+
+  // Initialize or connect to Google Spreadsheet
+  app.post('/api/sheets/init', async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { accessToken: bodyToken, spreadsheetId } = req.body;
+      const accessToken = (authHeader && authHeader.startsWith('Bearer '))
+        ? authHeader.split(' ')[1]
+        : bodyToken;
+
+      if (!accessToken) {
+        return res.status(401).json({ error: 'OAuth Access Token Google tidak ditemukan. Harap Sign-in via Google.' });
+      }
+
+      const config = await initGoogleSpreadsheet(accessToken, spreadsheetId);
+      // Automatically push initial data to the spreadsheet
+      await pushAllToSpreadsheet(accessToken, config.spreadsheetId, studentsDB, teachersDB, classesDB, attendanceDB);
+
+      res.json({
+        success: true,
+        ...config,
+        message: 'Database Google Spreadsheet berhasil terhubung & disinkronisasi!'
+      });
+    } catch (error: any) {
+      console.error('Error init Google Sheets:', error);
+      const rawMsg = error?.response?.data?.error?.message || error?.message || '';
+      let userMsg = 'Gagal mengonfigurasi Google Spreadsheet database.';
+      if (rawMsg.includes('invalid authentication credentials') || rawMsg.includes('Invalid Credentials') || error?.code === 401) {
+        userMsg = 'Token Akses Google OAuth tidak valid atau sudah kadaluarsa. Silakan lakukan Sign-In Google ulang atau perbarui Access Token secara manual.';
+      } else if (rawMsg) {
+        userMsg = `Google API Error: ${rawMsg}`;
+      }
+      res.status(500).json({ error: userMsg });
+    }
+  });
+
+  // Sync state from server DB -> Google Spreadsheet
+  app.post('/api/sheets/sync-to-sheet', async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { accessToken: bodyToken, spreadsheetId } = req.body;
+      const accessToken = (authHeader && authHeader.startsWith('Bearer '))
+        ? authHeader.split(' ')[1]
+        : bodyToken;
+      const targetId = spreadsheetId || getCurrentSheetsConfig().spreadsheetId;
+
+      if (!accessToken || !targetId) {
+        return res.status(400).json({ error: 'Membutuhkan Access Token dan Spreadsheet ID.' });
+      }
+
+      const result = await pushAllToSpreadsheet(accessToken, targetId, studentsDB, teachersDB, classesDB, attendanceDB);
+      res.json({ success: true, ...result, message: 'Seluruh data berhasil diekspor ke Google Spreadsheet!' });
+    } catch (error: any) {
+      console.error('Error sync-to-sheet:', error);
+      const rawMsg = error?.response?.data?.error?.message || error?.message || '';
+      let userMsg = 'Gagal mengekspor data ke Google Spreadsheet.';
+      if (rawMsg.includes('invalid authentication credentials') || rawMsg.includes('Invalid Credentials') || error?.code === 401) {
+        userMsg = 'Token Akses Google OAuth tidak valid atau sudah kadaluarsa. Silakan lakukan Sign-In Google ulang.';
+      } else if (rawMsg) {
+        userMsg = `Google API Error: ${rawMsg}`;
+      }
+      res.status(500).json({ error: userMsg });
+    }
+  });
+
+  // Sync state from Google Spreadsheet -> server DB
+  app.post('/api/sheets/sync-from-sheet', async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      const { accessToken: bodyToken, spreadsheetId } = req.body;
+      const accessToken = (authHeader && authHeader.startsWith('Bearer '))
+        ? authHeader.split(' ')[1]
+        : bodyToken;
+      const targetId = spreadsheetId || getCurrentSheetsConfig().spreadsheetId;
+
+      if (!accessToken || !targetId) {
+        return res.status(400).json({ error: 'Membutuhkan Access Token dan Spreadsheet ID.' });
+      }
+
+      const pulledData = await pullAllFromSpreadsheet(accessToken, targetId);
+      if (pulledData.students.length > 0) studentsDB = pulledData.students;
+      if (pulledData.teachers.length > 0) teachersDB = pulledData.teachers;
+      if (pulledData.classes.length > 0) classesDB = pulledData.classes;
+      if (pulledData.attendanceRecords.length > 0) attendanceDB = pulledData.attendanceRecords;
+
+      res.json({
+        success: true,
+        counts: {
+          students: studentsDB.length,
+          teachers: teachersDB.length,
+          classes: classesDB.length,
+          attendance: attendanceDB.length
+        },
+        message: 'Data berhasil diimpor & disinkronkan dari Google Spreadsheet database!'
+      });
+    } catch (error: any) {
+      console.error('Error sync-from-sheet:', error);
+      const rawMsg = error?.response?.data?.error?.message || error?.message || '';
+      let userMsg = 'Gagal mengimpor data dari Google Spreadsheet.';
+      if (rawMsg.includes('invalid authentication credentials') || rawMsg.includes('Invalid Credentials') || error?.code === 401) {
+        userMsg = 'Token Akses Google OAuth tidak valid atau sudah kadaluarsa. Silakan lakukan Sign-In Google ulang.';
+      } else if (rawMsg) {
+        userMsg = `Google API Error: ${rawMsg}`;
+      }
+      res.status(500).json({ error: userMsg });
+    }
+  });
+
+  // ==================== SUPABASE API ROUTES ====================
+
+  // Get Supabase config & status
+  app.get('/api/supabase/config', async (req, res) => {
+    const config = loadSupabaseConfig();
+    res.json({
+      ...config,
+      schema: SUPABASE_SQL_SCHEMA
+    });
+  });
+
+  // Save Supabase config & test connection
+  app.post('/api/supabase/config', async (req, res) => {
+    const { url, anonKey, autoSync } = req.body;
+    if (!url || !anonKey) {
+      return res.status(400).json({ error: 'Supabase URL dan Anon Key wajib diisi.' });
+    }
+
+    saveSupabaseConfig({
+      url: url.trim(),
+      anonKey: anonKey.trim(),
+      autoSync: autoSync ?? true
+    });
+
+    const health = await testSupabaseConnection();
+    if (health.success) {
+      res.json({
+        success: true,
+        message: health.message,
+        status: 'connected'
+      });
+    } else {
+      res.status(400).json({
+        error: health.message,
+        status: 'error'
+      });
+    }
+  });
+
+  // Push local data -> Supabase
+  app.post('/api/supabase/push', async (req, res) => {
+    try {
+      const result = await pushAllToSupabase({
+        classes: classesDB,
+        teachers: teachersDB,
+        students: studentsDB,
+        attendance: attendanceDB
+      });
+
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json({ error: result.message });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Gagal mengekspor data ke Supabase.' });
+    }
+  });
+
+  // Pull data from Supabase -> local memory
+  app.post('/api/supabase/pull', async (req, res) => {
+    try {
+      const result = await pullAllFromSupabase();
+      if (result.success && result.data) {
+        if (result.data.classes.length > 0) classesDB = result.data.classes;
+        if (result.data.teachers.length > 0) teachersDB = result.data.teachers;
+        if (result.data.students.length > 0) studentsDB = result.data.students;
+        if (result.data.attendance.length > 0) attendanceDB = result.data.attendance;
+
+        saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB });
+
+        res.json({
+          success: true,
+          message: result.message,
+          counts: {
+            students: studentsDB.length,
+            teachers: teachersDB.length,
+            classes: classesDB.length,
+            attendance: attendanceDB.length
+          }
+        });
+      } else {
+        res.status(500).json({ error: result.message });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || 'Gagal mengimpor data dari Supabase.' });
+    }
+  });
+
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`[SMA Islam Ra'iyatul Husnan Server] running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();
