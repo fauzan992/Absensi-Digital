@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Database, CheckCircle2, AlertCircle, RefreshCw, Upload, Download, Copy, ExternalLink, Key, Link as LinkIcon, Server } from 'lucide-react';
+import {
+  getStoredSupabaseConfig,
+  setStoredSupabaseConfig,
+  testBrowserSupabaseConnection,
+  pushAllFromBrowser,
+  pullAllFromBrowser
+} from '../services/clientSupabase';
+import { apiService } from '../services/apiService';
 
 interface SupabaseConfigState {
   url: string;
@@ -14,6 +22,77 @@ interface SupabaseManagerProps {
   onRefreshMasterData?: () => void;
 }
 
+const DEFAULT_SQL_SCHEMA = `-- SQL Schema Setup for SMA Islam Ra'iyatul Husnan Attendance System
+
+-- 1. Table: classes
+CREATE TABLE IF NOT EXISTS classes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  grade_level TEXT,
+  teacher_id TEXT,
+  teacher_name TEXT,
+  student_count INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Table: teachers
+CREATE TABLE IF NOT EXISTS teachers (
+  id TEXT PRIMARY KEY,
+  nip TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  gender TEXT DEFAULT 'L',
+  username TEXT NOT NULL,
+  subject TEXT,
+  assigned_class_id TEXT,
+  assigned_class_name TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 3. Table: students
+CREATE TABLE IF NOT EXISTS students (
+  id TEXT PRIMARY KEY,
+  nisn TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  gender TEXT DEFAULT 'L',
+  class_id TEXT NOT NULL,
+  class_name TEXT NOT NULL,
+  parent_name TEXT,
+  parent_phone TEXT,
+  photo_url TEXT,
+  default_password TEXT DEFAULT '123',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensure missing columns exist for existing tables
+ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS default_password TEXT DEFAULT '123';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_name TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone TEXT;
+
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_time TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_status TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_by TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS recorded_by_role TEXT;
+
+-- 4. Table: attendance
+CREATE TABLE IF NOT EXISTS attendance (
+  id TEXT PRIMARY KEY,
+  nisn TEXT NOT NULL,
+  student_name TEXT NOT NULL,
+  class_id TEXT NOT NULL,
+  class_name TEXT NOT NULL,
+  date TEXT NOT NULL,
+  time TEXT NOT NULL,
+  status TEXT NOT NULL,
+  notes TEXT,
+  recorded_by TEXT DEFAULT 'Scan Barcode',
+  recorded_by_role TEXT DEFAULT 'admin',
+  check_out_time TEXT,
+  check_out_status TEXT,
+  check_out_by TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);`;
+
 export const SupabaseManager: React.FC<SupabaseManagerProps> = ({ onRefreshMasterData }) => {
   const [config, setConfig] = useState<SupabaseConfigState>({
     url: '',
@@ -22,7 +101,7 @@ export const SupabaseManager: React.FC<SupabaseManagerProps> = ({ onRefreshMaste
     status: 'unconfigured'
   });
 
-  const [sqlSchema, setSqlSchema] = useState<string>('');
+  const [sqlSchema, setSqlSchema] = useState<string>(DEFAULT_SQL_SCHEMA);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -38,25 +117,32 @@ export const SupabaseManager: React.FC<SupabaseManagerProps> = ({ onRefreshMaste
     setIsLoading(true);
     try {
       const res = await fetch('/api/supabase/config');
-      const data = await res.json();
-      if (data) {
-        setConfig({
-          url: data.url || '',
-          anonKey: data.anonKey || '',
-          autoSync: data.autoSync ?? true,
-          lastSyncTime: data.lastSyncTime,
-          status: data.status || 'unconfigured',
-          errorMessage: data.errorMessage
-        });
-        if (data.schema) {
-          setSqlSchema(data.schema);
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        if (data) {
+          setConfig({
+            url: data.url || '',
+            anonKey: data.anonKey || '',
+            autoSync: data.autoSync ?? true,
+            lastSyncTime: data.lastSyncTime,
+            status: data.status || 'unconfigured',
+            errorMessage: data.errorMessage
+          });
+          if (data.schema) setSqlSchema(data.schema);
+          return;
         }
       }
     } catch (err: any) {
-      console.error('Failed to fetch Supabase config:', err);
+      console.warn('Backend /api/supabase/config unavailable, using client storage fallback:', err?.message);
     } finally {
       setIsLoading(false);
     }
+
+    // Fallback: Read client-side stored configuration
+    const stored = getStoredSupabaseConfig();
+    setConfig(stored);
+    setSqlSchema(DEFAULT_SQL_SCHEMA);
   };
 
   const handleSaveConfig = async (e: React.FormEvent) => {
@@ -64,35 +150,70 @@ export const SupabaseManager: React.FC<SupabaseManagerProps> = ({ onRefreshMaste
     setIsTesting(true);
     setStatusMessage({ type: 'info', text: 'Menghubungkan & menguji koneksi ke Supabase Database...' });
 
+    const trimmedUrl = config.url.trim();
+    const trimmedKey = config.anonKey.trim();
+
+    // 1. Try server endpoint first if available
     try {
       const res = await fetch('/api/supabase/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: config.url.trim(),
-          anonKey: config.anonKey.trim(),
+          url: trimmedUrl,
+          anonKey: trimmedKey,
           autoSync: config.autoSync
         })
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setConfig(prev => ({
+            ...prev,
+            status: data.status || 'connected',
+            errorMessage: undefined
+          }));
+          setStoredSupabaseConfig(trimmedUrl, trimmedKey, config.autoSync);
+          setStatusMessage({ type: 'success', text: data.message || 'Koneksi ke Supabase Database berhasil!' });
+          setIsTesting(false);
+          return;
+        } else if (data.error) {
+          setConfig(prev => ({
+            ...prev,
+            status: 'error',
+            errorMessage: data.error
+          }));
+          setStatusMessage({ type: 'error', text: data.error });
+          setIsTesting(false);
+          return;
+        }
+      }
+    } catch (err: any) {
+      console.warn('Server API unreachable or non-JSON, switching to browser direct Supabase test:', err?.message);
+    }
+
+    // 2. Client Direct Connection Fallback (Ideal for Vercel Static Deployments)
+    try {
+      const testResult = await testBrowserSupabaseConnection(trimmedUrl, trimmedKey);
+      if (testResult.success) {
+        setStoredSupabaseConfig(trimmedUrl, trimmedKey, config.autoSync);
         setConfig(prev => ({
           ...prev,
-          status: data.status || 'connected',
+          status: 'connected',
           errorMessage: undefined
         }));
-        setStatusMessage({ type: 'success', text: data.message || 'Koneksi ke Supabase Database berhasil!' });
+        setStatusMessage({ type: 'success', text: `${testResult.message} (Client Direct Connection)` });
       } else {
         setConfig(prev => ({
           ...prev,
           status: 'error',
-          errorMessage: data.error || 'Gagal terhubung ke Supabase.'
+          errorMessage: testResult.message
         }));
-        setStatusMessage({ type: 'error', text: data.error || 'Kredensial Supabase tidak valid.' });
+        setStatusMessage({ type: 'error', text: testResult.message });
       }
     } catch (err: any) {
-      setStatusMessage({ type: 'error', text: `Terjadi kesalahan jaringan: ${err.message}` });
+      setStatusMessage({ type: 'error', text: `Terjadi kesalahan koneksi Supabase: ${err.message}` });
     } finally {
       setIsTesting(false);
     }
@@ -102,15 +223,39 @@ export const SupabaseManager: React.FC<SupabaseManagerProps> = ({ onRefreshMaste
     setIsLoading(true);
     setStatusMessage({ type: 'info', text: 'Mengirim seluruh data sekolah & log presensi ke Supabase...' });
 
+    // Try server push endpoint first
     try {
       const res = await fetch('/api/supabase/push', { method: 'POST' });
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setStatusMessage({ type: 'success', text: data.message });
+          fetchSupabaseConfig();
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch (err: any) {
+      console.warn('Server push endpoint unavailable, using direct client push fallback:', err?.message);
+    }
 
-      if (res.ok && data.success) {
-        setStatusMessage({ type: 'success', text: data.message });
+    // Client Direct Push Fallback
+    try {
+      const masterData = await apiService.getMasterData();
+      const attendanceRes = await apiService.getAttendance({});
+      const pushRes = await pushAllFromBrowser(config.url, config.anonKey, {
+        classes: masterData.classes || [],
+        teachers: masterData.teachers || [],
+        students: masterData.students || [],
+        attendance: attendanceRes.records || []
+      });
+
+      if (pushRes.success) {
+        setStatusMessage({ type: 'success', text: pushRes.message || 'Berhasil ekspor data ke Supabase.' });
         fetchSupabaseConfig();
       } else {
-        setStatusMessage({ type: 'error', text: data.error || 'Gagal mengekspor data ke Supabase.' });
+        setStatusMessage({ type: 'error', text: pushRes.error || 'Gagal ekspor data ke Supabase.' });
       }
     } catch (err: any) {
       setStatusMessage({ type: 'error', text: `Gagal mengirim data: ${err.message}` });
@@ -127,16 +272,39 @@ export const SupabaseManager: React.FC<SupabaseManagerProps> = ({ onRefreshMaste
     setIsLoading(true);
     setStatusMessage({ type: 'info', text: 'Mengambil data terbaru dari Supabase Database...' });
 
+    // Try server pull endpoint first
     try {
       const res = await fetch('/api/supabase/pull', { method: 'POST' });
-      const data = await res.json();
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setStatusMessage({ type: 'success', text: data.message });
+          fetchSupabaseConfig();
+          if (onRefreshMasterData) onRefreshMasterData();
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch (err: any) {
+      console.warn('Server pull endpoint unavailable, using direct client pull fallback:', err?.message);
+    }
 
-      if (res.ok && data.success) {
-        setStatusMessage({ type: 'success', text: data.message });
+    // Client Direct Pull Fallback
+    try {
+      const pullRes = await pullAllFromBrowser(config.url, config.anonKey);
+      if (pullRes.success && pullRes.data) {
+        if (pullRes.data.students.length > 0) {
+          await apiService.importStudents(pullRes.data.students);
+        }
+        if (pullRes.data.teachers.length > 0) {
+          await apiService.importTeachers(pullRes.data.teachers);
+        }
+        setStatusMessage({ type: 'success', text: pullRes.message || 'Berhasil mengimpor data dari Supabase.' });
         fetchSupabaseConfig();
         if (onRefreshMasterData) onRefreshMasterData();
       } else {
-        setStatusMessage({ type: 'error', text: data.error || 'Gagal mengimpor data dari Supabase.' });
+        setStatusMessage({ type: 'error', text: pullRes.error || 'Gagal mengimpor data dari Supabase.' });
       }
     } catch (err: any) {
       setStatusMessage({ type: 'error', text: `Gagal mengambil data: ${err.message}` });
