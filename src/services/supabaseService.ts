@@ -1,7 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
-import { ClassRoom, Teacher, Student, AttendanceRecord, SchoolSettings } from '../types';
+import { ClassRoom, Teacher, Student, AttendanceRecord, SchoolSettings, BKNote } from '../types';
 
 export interface SupabaseConfig {
   url: string;
@@ -64,6 +64,7 @@ export function saveLocalDBBackup(data: {
   teachers: Teacher[];
   students: Student[];
   attendance: AttendanceRecord[];
+  bkNotes?: BKNote[];
   settings?: SchoolSettings;
 }) {
   try {
@@ -80,6 +81,7 @@ export function readLocalDBBackup(): {
   teachers?: Teacher[];
   students?: Student[];
   attendance?: AttendanceRecord[];
+  bkNotes?: BKNote[];
   settings?: SchoolSettings;
 } | null {
   try {
@@ -184,6 +186,17 @@ CREATE TABLE IF NOT EXISTS students (
   default_password TEXT DEFAULT '123',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure missing columns exist for existing tables
+ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS default_password TEXT DEFAULT '123';
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_name TEXT;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone TEXT;
+
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_time TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_status TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS check_out_by TEXT;
+ALTER TABLE attendance ADD COLUMN IF NOT EXISTS recorded_by_role TEXT;
 
 -- 4. Table: attendance
 CREATE TABLE IF NOT EXISTS attendance (
@@ -354,7 +367,13 @@ export async function pushAllToSupabase(data: {
     }));
 
     if (studentsData.length > 0) {
-      const { error: errStudents } = await supabase.from('students').upsert(studentsData, { onConflict: 'id' });
+      let { error: errStudents } = await supabase.from('students').upsert(studentsData, { onConflict: 'id' });
+      if (errStudents && errStudents.message && errStudents.message.includes('photo_url')) {
+        console.warn('Supabase students table missing photo_url column. Retrying without photo_url...');
+        const studentsDataNoPhoto = studentsData.map(({ photo_url, ...rest }) => rest);
+        const retryRes = await supabase.from('students').upsert(studentsDataNoPhoto, { onConflict: 'id' });
+        errStudents = retryRes.error;
+      }
       if (errStudents) throw new Error(`Tabel students: ${errStudents.message}`);
     }
 
@@ -378,7 +397,13 @@ export async function pushAllToSupabase(data: {
     }));
 
     if (attendanceData.length > 0) {
-      const { error: errAtt } = await supabase.from('attendance').upsert(attendanceData, { onConflict: 'id' });
+      let { error: errAtt } = await supabase.from('attendance').upsert(attendanceData, { onConflict: 'id' });
+      if (errAtt && errAtt.message && (errAtt.message.includes('check_out') || errAtt.message.includes('recorded_by_role'))) {
+        console.warn('Supabase attendance table missing checkout columns. Retrying with basic fields...');
+        const attendanceDataBasic = attendanceData.map(({ check_out_time, check_out_status, check_out_by, recorded_by_role, ...rest }) => rest);
+        const retryAtt = await supabase.from('attendance').upsert(attendanceDataBasic, { onConflict: 'id' });
+        errAtt = retryAtt.error;
+      }
       if (errAtt) throw new Error(`Tabel attendance: ${errAtt.message}`);
     }
 

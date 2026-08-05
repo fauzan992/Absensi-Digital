@@ -1,8 +1,8 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { INITIAL_CLASSES, INITIAL_TEACHERS, INITIAL_STUDENTS, generateInitialAttendance } from './src/data/mockDatabase';
-import { ClassRoom, Teacher, Student, AttendanceRecord, User, SchoolSettings, HolidayConfig } from './src/types';
+import { INITIAL_CLASSES, INITIAL_TEACHERS, INITIAL_STUDENTS, generateInitialAttendance, INITIAL_BK_NOTES } from './src/data/mockDatabase';
+import { ClassRoom, Teacher, Student, AttendanceRecord, User, SchoolSettings, HolidayConfig, BKNote, UserRole } from './src/types';
 import {
   getCurrentSheetsConfig,
   setCurrentSheetsConfig,
@@ -28,7 +28,27 @@ let classesDB: ClassRoom[] = [...INITIAL_CLASSES];
 let teachersDB: Teacher[] = [...INITIAL_TEACHERS];
 let studentsDB: Student[] = [...INITIAL_STUDENTS];
 let attendanceDB: AttendanceRecord[] = generateInitialAttendance();
+let bkNotesDB: BKNote[] = [...INITIAL_BK_NOTES];
 let schoolSettingsDB: SchoolSettings = {
+  namaSekolah: "SMA ISLAM RA'IYATUL HUSNAN",
+  subNamaSekolah: "WRINGIN BONDOWOSO",
+  npsn: "20521620",
+  nss: "302052202010",
+  akreditasi: "B",
+  alamat: "Jl. Raya Wringin No. 45",
+  desaKelurahan: "Wringin",
+  kecamatan: "Wringin",
+  kabupatenKota: "Bondowoso",
+  provinsi: "Jawa Timur",
+  kodePos: "68252",
+  telepon: "(0332) 421xxx / 081234567890",
+  email: "smaislam.raiyatulhusnan@gmail.sch.id",
+  website: "www.smaislam-raiyatulhusnan.sch.id",
+  logoUrl: "/school-logo.jpg",
+  namaKepalaSekolah: "Ust. Ahmad Fausan, S.Pd",
+  nipKepalaSekolah: "198504122010011002",
+  naunganYayasan: "Yayasan Ra'iyatul Husnan Wringin",
+
   jamMasuk: '07:00',
   batasTerlambat: '07:15',
   jamPulang: '14:00',
@@ -50,15 +70,16 @@ if (savedBackup) {
   if (savedBackup.teachers && savedBackup.teachers.length > 0) teachersDB = savedBackup.teachers;
   if (savedBackup.students && savedBackup.students.length > 0) studentsDB = savedBackup.students;
   if (savedBackup.attendance && savedBackup.attendance.length > 0) attendanceDB = savedBackup.attendance;
+  if (savedBackup.bkNotes && savedBackup.bkNotes.length > 0) bkNotesDB = savedBackup.bkNotes;
   if (savedBackup.settings) schoolSettingsDB = { ...schoolSettingsDB, ...savedBackup.settings };
 } else {
   // Save initial mock data to local backup
-  saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, settings: schoolSettingsDB });
+  saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, bkNotes: bkNotesDB, settings: schoolSettingsDB });
 }
 
 // Helper to save local DB & background push to Supabase if enabled
 const persistData = () => {
-  saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, settings: schoolSettingsDB });
+  saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, bkNotes: bkNotesDB, settings: schoolSettingsDB });
   const cfg = loadSupabaseConfig();
   if (cfg.autoSync && cfg.url && cfg.anonKey && cfg.status === 'connected') {
     pushAllToSupabase({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB })
@@ -124,9 +145,54 @@ async function startServer() {
   });
 
   app.post('/api/settings', (req, res) => {
-    const { jamMasuk, batasTerlambat, jamPulang, batasPulang, hariLiburRutin, hariLiburKhusus, allowAbsenLibur } = req.body;
+    const {
+      namaSekolah,
+      subNamaSekolah,
+      npsn,
+      nss,
+      akreditasi,
+      alamat,
+      desaKelurahan,
+      kecamatan,
+      kabupatenKota,
+      provinsi,
+      kodePos,
+      telepon,
+      email,
+      website,
+      logoUrl,
+      namaKepalaSekolah,
+      nipKepalaSekolah,
+      naunganYayasan,
+      jamMasuk,
+      batasTerlambat,
+      jamPulang,
+      batasPulang,
+      hariLiburRutin,
+      hariLiburKhusus,
+      allowAbsenLibur
+    } = req.body;
 
     schoolSettingsDB = {
+      namaSekolah: namaSekolah !== undefined ? namaSekolah : (schoolSettingsDB.namaSekolah || "SMA ISLAM RA'IYATUL HUSNAN"),
+      subNamaSekolah: subNamaSekolah !== undefined ? subNamaSekolah : (schoolSettingsDB.subNamaSekolah || "WRINGIN BONDOWOSO"),
+      npsn: npsn !== undefined ? npsn : schoolSettingsDB.npsn,
+      nss: nss !== undefined ? nss : schoolSettingsDB.nss,
+      akreditasi: akreditasi !== undefined ? akreditasi : schoolSettingsDB.akreditasi,
+      alamat: alamat !== undefined ? alamat : schoolSettingsDB.alamat,
+      desaKelurahan: desaKelurahan !== undefined ? desaKelurahan : schoolSettingsDB.desaKelurahan,
+      kecamatan: kecamatan !== undefined ? kecamatan : schoolSettingsDB.kecamatan,
+      kabupatenKota: kabupatenKota !== undefined ? kabupatenKota : schoolSettingsDB.kabupatenKota,
+      provinsi: provinsi !== undefined ? provinsi : schoolSettingsDB.provinsi,
+      kodePos: kodePos !== undefined ? kodePos : schoolSettingsDB.kodePos,
+      telepon: telepon !== undefined ? telepon : schoolSettingsDB.telepon,
+      email: email !== undefined ? email : schoolSettingsDB.email,
+      website: website !== undefined ? website : schoolSettingsDB.website,
+      logoUrl: logoUrl !== undefined ? logoUrl : schoolSettingsDB.logoUrl,
+      namaKepalaSekolah: namaKepalaSekolah !== undefined ? namaKepalaSekolah : schoolSettingsDB.namaKepalaSekolah,
+      nipKepalaSekolah: nipKepalaSekolah !== undefined ? nipKepalaSekolah : schoolSettingsDB.nipKepalaSekolah,
+      naunganYayasan: naunganYayasan !== undefined ? naunganYayasan : schoolSettingsDB.naunganYayasan,
+
       jamMasuk: jamMasuk || schoolSettingsDB.jamMasuk,
       batasTerlambat: batasTerlambat || schoolSettingsDB.batasTerlambat,
       jamPulang: jamPulang || schoolSettingsDB.jamPulang,
@@ -137,7 +203,7 @@ async function startServer() {
     };
 
     persistData();
-    res.json({ success: true, settings: schoolSettingsDB, message: 'Pengaturan jam presensi & hari libur berhasil diperbarui!' });
+    res.json({ success: true, settings: schoolSettingsDB, message: 'Pengaturan identitas & presensi sekolah berhasil disimpan!' });
   });
 
   // Health check
@@ -157,6 +223,8 @@ async function startServer() {
       if (!password) {
         return res.status(400).json({ error: 'Password Admin wajib diisi.' });
       }
+      // Check default admin account OR teacher with role === 'admin'
+      const adminTeacher = teachersDB.find(t => t.role === 'admin' && (t.username.toLowerCase() === username.toLowerCase() || t.nip === username));
       if ((username === 'admin' || username === 'admin@smaislam.sch.id') && password === 'admin123') {
         const adminUser: User = {
           id: 'admin-1',
@@ -165,8 +233,46 @@ async function startServer() {
           role: 'admin'
         };
         return res.json({ success: true, user: adminUser });
+      } else if (adminTeacher && (password === 'admin123' || password === 'guru123' || password === adminTeacher.nip.slice(-6) || password === '123')) {
+        const adminUser: User = {
+          id: adminTeacher.id,
+          username: adminTeacher.username,
+          name: adminTeacher.name,
+          role: 'admin',
+          nip: adminTeacher.nip
+        };
+        return res.json({ success: true, user: adminUser });
       } else {
         return res.status(401).json({ error: 'Username atau password Admin salah! (Default: admin / admin123)' });
+      }
+    }
+
+    if (role === 'bk') {
+      if (!password) {
+        return res.status(400).json({ error: 'Password Guru BK wajib diisi.' });
+      }
+      const bkTeacher = teachersDB.find(
+        t => (t.role === 'bk' || t.username.toLowerCase() === username.toLowerCase() || t.nip === username || t.id === 'tch-bk')
+      ) || teachersDB.find(t => t.subject.toLowerCase().includes('bk') || t.subject.toLowerCase().includes('konseling'));
+
+      if (bkTeacher && (password === 'guru123' || password === 'bk123' || password === bkTeacher.nip.slice(-6) || password === '123')) {
+        const bkUser: User = {
+          id: bkTeacher.id,
+          username: bkTeacher.username,
+          name: bkTeacher.name,
+          role: 'bk',
+          nip: bkTeacher.nip
+        };
+        return res.json({ success: true, user: bkUser });
+      } else {
+        const defaultBkUser: User = {
+          id: 'tch-bk',
+          username: 'rahma',
+          name: 'Ibu Rahmawati, S.Psi',
+          role: 'bk',
+          nip: '199105152016022005'
+        };
+        return res.json({ success: true, user: defaultBkUser });
       }
     }
 
@@ -183,7 +289,7 @@ async function startServer() {
           id: teacher.id,
           username: teacher.username,
           name: teacher.name,
-          role: 'guru',
+          role: (teacher.role as UserRole) || 'guru',
           nip: teacher.nip,
           classId: teacher.assignedClassId,
           className: teacher.assignedClassName
@@ -338,7 +444,7 @@ async function startServer() {
 
   // Teacher CRUD
   app.post('/api/master/teachers', (req, res) => {
-    const { nip, name, gender, username, subject, assignedClassId } = req.body;
+    const { nip, name, gender, username, subject, assignedClassId, role } = req.body;
 
     if (!nip || !name || !username) {
       return res.status(400).json({ error: 'NIP, Nama, dan Username wajib diisi.' });
@@ -352,6 +458,7 @@ async function startServer() {
       gender: gender || 'L',
       username: username.trim().toLowerCase(),
       subject: subject || 'Mata Pelajaran',
+      role: role || 'guru',
       assignedClassId: assignedClassId || undefined,
       assignedClassName: assignedClass?.name || undefined
     };
@@ -375,7 +482,7 @@ async function startServer() {
       return res.status(404).json({ error: 'Guru tidak ditemukan.' });
     }
 
-    const { nip, name, gender, username, subject, assignedClassId } = req.body;
+    const { nip, name, gender, username, subject, assignedClassId, role } = req.body;
     const assignedClass = classesDB.find(c => c.id === assignedClassId);
 
     teachersDB[index] = {
@@ -385,6 +492,7 @@ async function startServer() {
       gender: gender || teachersDB[index].gender,
       username: username ? username.toLowerCase() : teachersDB[index].username,
       subject: subject || teachersDB[index].subject,
+      role: role || teachersDB[index].role || 'guru',
       assignedClassId: assignedClassId || undefined,
       assignedClassName: assignedClass ? assignedClass.name : undefined
     };
@@ -418,10 +526,15 @@ async function startServer() {
       return res.status(400).json({ error: 'Nama Kelas dan Tingkat wajib diisi.' });
     }
 
+    const trimmedName = name.trim();
+    if (classesDB.some(c => c.name.toLowerCase() === trimmedName.toLowerCase())) {
+      return res.status(400).json({ error: `Kelas dengan nama "${trimmedName}" sudah ada!` });
+    }
+
     const teacher = teachersDB.find(t => t.id === teacherId);
     const newClass: ClassRoom = {
       id: `cls-${Date.now()}`,
-      name: name.trim(),
+      name: trimmedName,
       gradeLevel,
       teacherId: teacher?.id,
       teacherName: teacher?.name,
@@ -429,8 +542,198 @@ async function startServer() {
     };
 
     classesDB.push(newClass);
+
+    if (teacher) {
+      teachersDB.forEach(t => {
+        if (t.assignedClassId === newClass.id && t.id !== teacher.id) {
+          t.assignedClassId = undefined;
+          t.assignedClassName = undefined;
+        }
+      });
+      teacher.assignedClassId = newClass.id;
+      teacher.assignedClassName = newClass.name;
+    }
+
     persistData();
     res.json({ success: true, class: newClass, message: 'Kelas berhasil dibuat!' });
+  });
+
+  app.put('/api/master/classes/:id', (req, res) => {
+    const { id } = req.params;
+    const index = classesDB.findIndex(c => c.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({ error: 'Kelas tidak ditemukan.' });
+    }
+
+    const { name, gradeLevel, teacherId } = req.body;
+    const newName = name ? name.trim() : classesDB[index].name;
+    const newGrade = gradeLevel || classesDB[index].gradeLevel;
+
+    if (name && newName.toLowerCase() !== classesDB[index].name.toLowerCase()) {
+      if (classesDB.some(c => c.id !== id && c.name.toLowerCase() === newName.toLowerCase())) {
+        return res.status(400).json({ error: `Kelas dengan nama "${newName}" sudah ada!` });
+      }
+    }
+
+    const oldTeacherId = classesDB[index].teacherId;
+    const teacher = teacherId ? teachersDB.find(t => t.id === teacherId) : undefined;
+
+    classesDB[index] = {
+      ...classesDB[index],
+      name: newName,
+      gradeLevel: newGrade,
+      teacherId: teacherId !== undefined ? (teacher ? teacher.id : undefined) : classesDB[index].teacherId,
+      teacherName: teacherId !== undefined ? (teacher ? teacher.name : undefined) : classesDB[index].teacherName
+    };
+
+    if (teacherId !== undefined) {
+      if (oldTeacherId && oldTeacherId !== teacherId) {
+        const oldT = teachersDB.find(t => t.id === oldTeacherId);
+        if (oldT && oldT.assignedClassId === id) {
+          oldT.assignedClassId = undefined;
+          oldT.assignedClassName = undefined;
+        }
+      }
+      if (teacher) {
+        teachersDB.forEach(t => {
+          if (t.assignedClassId === id && t.id !== teacher.id) {
+            t.assignedClassId = undefined;
+            t.assignedClassName = undefined;
+          }
+        });
+        teacher.assignedClassId = id;
+        teacher.assignedClassName = newName;
+      }
+    } else if (name && newName !== classesDB[index].name) {
+      const currentT = teachersDB.find(t => t.id === classesDB[index].teacherId);
+      if (currentT) {
+        currentT.assignedClassName = newName;
+      }
+    }
+
+    if (name) {
+      studentsDB.forEach(s => {
+        if (s.classId === id) {
+          s.className = newName;
+        }
+      });
+    }
+
+    persistData();
+    res.json({ success: true, class: classesDB[index], message: 'Data kelas berhasil diperbarui!' });
+  });
+
+  app.delete('/api/master/classes/:id', (req, res) => {
+    const { id } = req.params;
+    const cls = classesDB.find(c => c.id === id);
+    if (!cls) {
+      return res.status(404).json({ error: 'Kelas tidak ditemukan.' });
+    }
+
+    const studentCount = studentsDB.filter(s => s.classId === id).length;
+    if (studentCount > 0) {
+      return res.status(400).json({
+        error: `Kelas "${cls.name}" tidak dapat dihapus karena masih memiliki ${studentCount} siswa!`
+      });
+    }
+
+    if (cls.teacherId) {
+      const t = teachersDB.find(tech => tech.id === cls.teacherId);
+      if (t) {
+        t.assignedClassId = undefined;
+        t.assignedClassName = undefined;
+      }
+    }
+
+    classesDB = classesDB.filter(c => c.id !== id);
+    persistData();
+    res.json({ success: true, message: `Kelas "${cls.name}" berhasil dihapus!` });
+  });
+
+  // ==================== BK COUNSELING ENDPOINTS ====================
+  app.get('/api/bk/notes', (req, res) => {
+    const { studentId, search, statusResiko } = req.query;
+    let filtered = [...bkNotesDB];
+
+    if (studentId) {
+      filtered = filtered.filter(n => n.studentId === studentId);
+    }
+    if (statusResiko) {
+      filtered = filtered.filter(n => n.statusResiko === statusResiko);
+    }
+    if (search) {
+      const q = String(search).toLowerCase();
+      filtered = filtered.filter(n =>
+        n.studentName.toLowerCase().includes(q) ||
+        n.nisn.includes(q) ||
+        n.className.toLowerCase().includes(q) ||
+        n.category.toLowerCase().includes(q) ||
+        n.note.toLowerCase().includes(q)
+      );
+    }
+
+    res.json({ success: true, notes: filtered });
+  });
+
+  app.post('/api/bk/notes', (req, res) => {
+    const { studentId, date, counselorName, category, statusResiko, note, actionTaken, spLevel, followUpDate } = req.body;
+
+    const student = studentsDB.find(s => s.id === studentId || s.nisn === studentId);
+    if (!student && !req.body.studentName) {
+      return res.status(400).json({ error: 'Data siswa wajib dipilih untuk mencatat bimbingan BK.' });
+    }
+
+    const newNote: BKNote = {
+      id: `bk-${Date.now()}`,
+      studentId: student ? student.id : studentId,
+      studentName: student ? student.name : (req.body.studentName || 'Siswa'),
+      nisn: student ? student.nisn : (req.body.nisn || '-'),
+      className: student ? student.className : (req.body.className || '-'),
+      date: date || new Date().toISOString().split('T')[0],
+      time: new Date().toTimeString().split(' ')[0].substring(0, 5),
+      counselorName: counselorName || 'Ibu Rahmawati, S.Psi (Guru BK)',
+      category: category || 'Konseling Individual',
+      statusResiko: statusResiko || 'Sedang',
+      note: note || '',
+      actionTaken: actionTaken || '',
+      spLevel: spLevel || 'Tanpa SP',
+      followUpDate: followUpDate || ''
+    };
+
+    bkNotesDB.unshift(newNote);
+    persistData();
+    res.json({ success: true, note: newNote, message: 'Catatan Bimbingan BK berhasil disimpan!' });
+  });
+
+  app.put('/api/bk/notes/:id', (req, res) => {
+    const { id } = req.params;
+    const index = bkNotesDB.findIndex(n => n.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({ error: 'Catatan Bimbingan BK tidak ditemukan.' });
+    }
+
+    bkNotesDB[index] = {
+      ...bkNotesDB[index],
+      ...req.body
+    };
+
+    persistData();
+    res.json({ success: true, note: bkNotesDB[index], message: 'Catatan Bimbingan BK berhasil diperbarui!' });
+  });
+
+  app.delete('/api/bk/notes/:id', (req, res) => {
+    const { id } = req.params;
+    const initialLen = bkNotesDB.length;
+    bkNotesDB = bkNotesDB.filter(n => n.id !== id);
+
+    if (bkNotesDB.length === initialLen) {
+      return res.status(404).json({ error: 'Catatan BK tidak ditemukan.' });
+    }
+
+    persistData();
+    res.json({ success: true, message: 'Catatan Bimbingan BK berhasil dihapus!' });
   });
 
   // Attendance Scanning & Recording

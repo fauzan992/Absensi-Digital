@@ -1,7 +1,8 @@
-import React from 'react';
-import { User, UserRole } from '../types';
+import React, { useState, useEffect } from 'react';
+import { User, UserRole, SchoolSettings } from '../types';
 import { School, LogOut, Shield, UserCheck, Heart, RotateCcw, Key, Sparkles, Menu, PanelLeftOpen } from 'lucide-react';
 import { SchoolLogo } from './SchoolLogo';
+import { apiService } from '../services/apiService';
 
 interface HeaderNavbarProps {
   user: User | null;
@@ -10,6 +11,7 @@ interface HeaderNavbarProps {
   onResetData: () => void;
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
+  schoolSettings?: SchoolSettings;
 }
 
 export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({
@@ -18,14 +20,33 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({
   onQuickLogin,
   onResetData,
   onToggleSidebar,
-  isSidebarOpen
+  isSidebarOpen,
+  schoolSettings
 }) => {
+  const [settings, setSettings] = useState<SchoolSettings | null>(schoolSettings || null);
+
+  useEffect(() => {
+    if (schoolSettings) {
+      setSettings(schoolSettings);
+    } else {
+      apiService.getSettings().then(res => {
+        if (res.success && res.settings) {
+          setSettings(res.settings);
+        }
+      });
+    }
+  }, [schoolSettings]);
+
   const currentDateStr = new Date().toLocaleDateString('id-ID', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric'
   });
+
+  const schoolName = settings?.namaSekolah || "SMA ISLAM RA'IYATUL HUSNAN";
+  const subSchoolName = settings?.subNamaSekolah || "WRINGIN BONDOWOSO";
+  const logoUrl = settings?.logoUrl || "/school-logo.jpg";
 
   return (
     <header className="bg-emerald-900 text-white shadow-xl border-b border-emerald-800/80 sticky top-0 z-50 min-h-[64px] flex items-center">
@@ -47,17 +68,17 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({
             </button>
           )}
 
-          <SchoolLogo size={42} />
+          <SchoolLogo size={42} logoUrl={logoUrl} schoolName={schoolName} subName={subSchoolName} />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="font-extrabold text-sm md:text-base leading-tight tracking-wide text-amber-300 uppercase">
-                SMA ISLAM RA'IYATUL HUSNAN
+                {schoolName}
               </h1>
               <span className="hidden sm:inline-block px-2 py-0.5 bg-emerald-800 text-emerald-200 text-[9px] font-extrabold uppercase rounded-full border border-emerald-700">
                 VERIFIED NISN
               </span>
             </div>
-            <p className="text-[11px] text-emerald-200/90 font-medium">Sistem Absensi Digital Barcode NISN</p>
+            <p className="text-[11px] text-emerald-200/90 font-medium">Sistem Absensi Digital Barcode NISN • {subSchoolName}</p>
           </div>
         </div>
 
@@ -84,7 +105,17 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({
                 : 'text-emerald-200 hover:text-white hover:bg-emerald-800/50'
             }`}
           >
-            👨‍🏫 Guru (X MIPA 1)
+            👨‍🏫 Guru Kelas
+          </button>
+          <button
+            onClick={() => onQuickLogin('bk', 'rahma')}
+            className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+              user?.role === 'bk'
+                ? 'bg-amber-400 text-slate-950 shadow-md font-extrabold scale-105'
+                : 'text-emerald-200 hover:text-white hover:bg-emerald-800/50'
+            }`}
+          >
+            💚 Guru BK
           </button>
           <button
             onClick={() => onQuickLogin('wali', '0061234501')}

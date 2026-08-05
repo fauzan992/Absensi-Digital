@@ -7,9 +7,11 @@ import { NISNBarcode } from './NISNBarcode';
 import { DismissalAttendanceSection } from './DismissalAttendanceSection';
 import { MonthlyAttendanceReport } from './MonthlyAttendanceReport';
 import { MainDashboardOverview } from './MainDashboardOverview';
+import { BKCounselingSection } from './BKCounselingSection';
+import { BKNote } from '../types';
 import {
   UserCheck, Barcode, Calendar, FileSpreadsheet, CheckCircle2,
-  XCircle, Clock, AlertTriangle, ArrowDownToLine, Search, Save, Check, RefreshCw, DoorOpen
+  XCircle, Clock, AlertTriangle, ArrowDownToLine, Search, Save, Check, RefreshCw, DoorOpen, Heart
 } from 'lucide-react';
 
 interface GuruDashboardProps {
@@ -17,9 +19,10 @@ interface GuruDashboardProps {
   students: Student[];
   classes: ClassRoom[];
   attendanceRecords: AttendanceRecord[];
+  bkNotes?: BKNote[];
   onRefreshData: () => void;
   externalActiveTab?: string;
-  onTabChange?: (tab: 'dashboard' | 'master' | 'scan' | 'reports' | 'import' | 'settings') => void;
+  onTabChange?: (tab: 'dashboard' | 'master' | 'bk' | 'scan' | 'reports' | 'import' | 'settings') => void;
 }
 
 export const GuruDashboard: React.FC<GuruDashboardProps> = ({
@@ -27,11 +30,12 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   students,
   classes,
   attendanceRecords,
+  bkNotes = [],
   onRefreshData,
   externalActiveTab,
   onTabChange
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'scan' | 'checkout' | 'today' | 'reports'>(
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'scan' | 'checkout' | 'today' | 'reports' | 'bk'>(
     (externalActiveTab as any) || 'dashboard'
   );
   const [reportsSubTab, setReportsSubTab] = useState<'daily' | 'monthly'>('daily');
@@ -40,7 +44,7 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
 
   useEffect(() => {
     if (externalActiveTab) {
-      if (externalActiveTab === 'dashboard' || externalActiveTab === 'reports' || externalActiveTab === 'scan') {
+      if (externalActiveTab === 'dashboard' || externalActiveTab === 'reports' || externalActiveTab === 'scan' || externalActiveTab === 'bk') {
         setActiveTab(externalActiveTab as any);
       } else if (externalActiveTab === 'master') {
         setActiveTab('today');
@@ -603,6 +607,18 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
                 />
               )}
             </div>
+          )}
+
+          {/* TAB BK */}
+          {activeTab === 'bk' && (
+            <BKCounselingSection
+              user={user}
+              students={students}
+              classes={classes}
+              attendanceRecords={attendanceRecords}
+              bkNotes={bkNotes}
+              onRefreshData={onRefreshData}
+            />
           )}
         </div>
       </div>

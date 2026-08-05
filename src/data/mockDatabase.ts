@@ -1,4 +1,4 @@
-import { Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus } from '../types';
+import { Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus, BKNote } from '../types';
 
 export const INITIAL_CLASSES: ClassRoom[] = [
   { id: 'cls-1', name: 'X MIPA 1', gradeLevel: 'X', teacherId: 'tch-1', teacherName: 'Ust. Ahmad Fausan, S.Pd', studentCount: 5 },
@@ -9,11 +9,47 @@ export const INITIAL_CLASSES: ClassRoom[] = [
 ];
 
 export const INITIAL_TEACHERS: Teacher[] = [
-  { id: 'tch-1', nip: '198504122010011002', name: 'Ust. Ahmad Fausan, S.Pd', gender: 'L', username: 'ahmad', subject: 'Matematika', assignedClassId: 'cls-1', assignedClassName: 'X MIPA 1' },
-  { id: 'tch-2', nip: '199008232015022001', name: 'Ustadzah Siti Nurhaliza, M.Pd', gender: 'P', username: 'siti', subject: 'Fisika', assignedClassId: 'cls-3', assignedClassName: 'XI MIPA 1' },
-  { id: 'tch-3', nip: '198811052012011003', name: 'Ust. Muhammad Ridwan, S.Ag', gender: 'L', username: 'ridwan', subject: 'Pendidikan Agama Islam', assignedClassId: 'cls-5', assignedClassName: 'XII MIPA 1' },
-  { id: 'tch-4', nip: '199203152018022004', name: 'Ustadzah Nurul Hidayah, S.Si', gender: 'P', username: 'nurul', subject: 'Biologi', assignedClassId: 'cls-2', assignedClassName: 'X MIPA 2' },
-  { id: 'tch-5', nip: '198307202009011005', name: 'Ust. Bambang Kurniawan, S.E', gender: 'L', username: 'bambang', subject: 'Ekonomi', assignedClassId: 'cls-4', assignedClassName: 'XI IPS 1' },
+  { id: 'tch-1', nip: '198504122010011002', name: 'Ust. Ahmad Fausan, S.Pd', gender: 'L', username: 'ahmad', subject: 'Matematika', assignedClassId: 'cls-1', assignedClassName: 'X MIPA 1', role: 'guru' },
+  { id: 'tch-2', nip: '199008232015022001', name: 'Ustadzah Siti Nurhaliza, M.Pd', gender: 'P', username: 'siti', subject: 'Fisika', assignedClassId: 'cls-3', assignedClassName: 'XI MIPA 1', role: 'guru' },
+  { id: 'tch-3', nip: '198811052012011003', name: 'Ust. Muhammad Ridwan, S.Ag', gender: 'L', username: 'ridwan', subject: 'Pendidikan Agama Islam', assignedClassId: 'cls-5', assignedClassName: 'XII MIPA 1', role: 'guru' },
+  { id: 'tch-4', nip: '199203152018022004', name: 'Ustadzah Nurul Hidayah, S.Si', gender: 'P', username: 'nurul', subject: 'Biologi', assignedClassId: 'cls-2', assignedClassName: 'X MIPA 2', role: 'guru' },
+  { id: 'tch-5', nip: '198307202009011005', name: 'Ust. Bambang Kurniawan, S.E', gender: 'L', username: 'bambang', subject: 'Ekonomi', assignedClassId: 'cls-4', assignedClassName: 'XI IPS 1', role: 'guru' },
+  { id: 'tch-bk', nip: '199105152016022005', name: 'Ibu Rahmawati, S.Psi', gender: 'P', username: 'rahma', subject: 'Bimbingan Konseling (BK)', role: 'bk' },
+];
+
+export const INITIAL_BK_NOTES: BKNote[] = [
+  {
+    id: 'bk-1',
+    studentId: 'std-5',
+    studentName: 'Bilal Ramadhan',
+    nisn: '0061234505',
+    className: 'X MIPA 1',
+    date: '2026-08-03',
+    time: '09:30',
+    counselorName: 'Ibu Rahmawati, S.Psi (Guru BK)',
+    category: 'Konseling Individual',
+    statusResiko: 'Sedang',
+    note: 'Siswa sering alpa di hari Senin. Dilakukan pemanggilan individual untuk klarifikasi alasan ketidakhadiran.',
+    actionTaken: 'Siswa berjanji meningkatkan kedisiplinan dan menandatangani komitmen hadir tepat waktu.',
+    spLevel: 'Tanpa SP',
+    followUpDate: '2026-08-10'
+  },
+  {
+    id: 'bk-2',
+    studentId: 'std-9',
+    studentName: 'Rizky Al-Fatih',
+    nisn: '0061234509',
+    className: 'X MIPA 2',
+    date: '2026-08-04',
+    time: '10:15',
+    counselorName: 'Ibu Rahmawati, S.Psi (Guru BK)',
+    category: 'Pemanggilan Orang Tua',
+    statusResiko: 'Tinggi (Kritis)',
+    note: 'Akumulasi Alpa mencapai 3 hari berturut-turut. Perlu penanganan intensif bersama orang tua.',
+    actionTaken: 'Menerbitkan Surat Pemanggilan Orang Tua ke sekolah pada hari Jumat jam 09:00 WIB.',
+    spLevel: 'SP-1',
+    followUpDate: '2026-08-07'
+  }
 ];
 
 export const INITIAL_STUDENTS: Student[] = [

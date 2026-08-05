@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Student, Teacher, ClassRoom, AttendanceRecord, UserRole } from './types';
+import { User, Student, Teacher, ClassRoom, AttendanceRecord, UserRole, BKNote } from './types';
 import { apiService } from './services/apiService';
 import { HeaderNavbar } from './components/HeaderNavbar';
 import { Sidebar } from './components/Sidebar';
@@ -7,6 +7,7 @@ import { LoginModal } from './components/LoginModal';
 import { AdminDashboard } from './components/AdminDashboard';
 import { GuruDashboard } from './components/GuruDashboard';
 import { WaliMuridDashboard } from './components/WaliMuridDashboard';
+import { BKDashboard } from './components/BKDashboard';
 import { Shield, GraduationCap, Heart, Barcode, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export default function App() {
@@ -24,11 +25,12 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classes, setClasses] = useState<ClassRoom[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+  const [bkNotes, setBkNotes] = useState<BKNote[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Left Sidebar State & Tab Controls
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'discipline' | 'scan' | 'reports' | 'import' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings'>('dashboard');
   const [masterSubTab, setMasterSubTab] = useState<'students' | 'teachers' | 'classes' | 'guardians'>('students');
 
   // Fetch application state
@@ -42,6 +44,9 @@ export default function App() {
 
       const att = await apiService.getAttendance({});
       setAttendanceRecords(att.records || []);
+
+      const bkRes = await apiService.getBKNotes();
+      setBkNotes(bkRes.notes || []);
     } catch (err) {
       console.error('Failed loading app data', err);
     } finally {
@@ -65,6 +70,10 @@ export default function App() {
       const uname = usernameArg || 'ahmad';
       const res = await apiService.login('guru', uname, 'guru123');
       if (res.user) setUser(res.user);
+    } else if (role === 'bk') {
+      const uname = usernameArg || 'rahma';
+      const res = await apiService.login('bk', uname, 'guru123');
+      if (res.user) setUser(res.user);
     } else if (role === 'wali') {
       const uname = usernameArg || '0061234501';
       const res = await apiService.login('wali', uname, '123');
@@ -80,7 +89,7 @@ export default function App() {
   };
 
   const handleSidebarTabSelect = (
-    tab: 'dashboard' | 'master' | 'discipline' | 'scan' | 'reports' | 'import' | 'settings',
+    tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings',
     subTab?: 'students' | 'teachers' | 'classes' | 'guardians'
   ) => {
     setActiveTab(tab);
@@ -128,6 +137,7 @@ export default function App() {
                   teachers={teachers}
                   classes={classes}
                   attendanceRecords={attendanceRecords}
+                  bkNotes={bkNotes}
                   onRefreshData={loadAppData}
                   externalActiveTab={activeTab}
                   externalMasterSubTab={masterSubTab}
@@ -144,6 +154,19 @@ export default function App() {
                   students={students}
                   classes={classes}
                   attendanceRecords={attendanceRecords}
+                  bkNotes={bkNotes}
+                  onRefreshData={loadAppData}
+                  externalActiveTab={activeTab}
+                />
+              )}
+
+              {user.role === 'bk' && (
+                <BKDashboard
+                  user={user}
+                  students={students}
+                  classes={classes}
+                  attendanceRecords={attendanceRecords}
+                  bkNotes={bkNotes}
                   onRefreshData={loadAppData}
                   externalActiveTab={activeTab}
                 />

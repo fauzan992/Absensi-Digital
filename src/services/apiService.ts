@@ -1,4 +1,4 @@
-import { User, Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus, UserRole, SchoolSettings } from '../types';
+import { User, Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus, UserRole, SchoolSettings, BKNote } from '../types';
 
 export const apiService = {
   // Settings
@@ -160,6 +160,90 @@ export const apiService = {
       return data;
     } catch (err) {
       return { success: false, error: 'Gagal menambah kelas.' };
+    }
+  },
+
+  async updateClass(id: string, classData: Partial<ClassRoom>): Promise<{ success: boolean; class?: ClassRoom; error?: string; message?: string }> {
+    try {
+      const res = await fetch(`/api/master/classes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(classData)
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      return data;
+    } catch (err) {
+      return { success: false, error: 'Gagal memperbarui data kelas.' };
+    }
+  },
+
+  async deleteClass(id: string): Promise<{ success: boolean; error?: string; message?: string }> {
+    try {
+      const res = await fetch(`/api/master/classes/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      return data;
+    } catch (err) {
+      return { success: false, error: 'Gagal menghapus kelas.' };
+    }
+  },
+
+  // BK Counseling Notes
+  async getBKNotes(params?: { studentId?: string; search?: string; statusResiko?: string }): Promise<{ success: boolean; notes?: BKNote[]; error?: string }> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.studentId) query.append('studentId', params.studentId);
+      if (params?.search) query.append('search', params.search);
+      if (params?.statusResiko) query.append('statusResiko', params.statusResiko);
+
+      const res = await fetch(`/api/bk/notes?${query.toString()}`);
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      return data;
+    } catch (err) {
+      return { success: false, error: 'Gagal memuat catatan Bimbingan BK.' };
+    }
+  },
+
+  async addBKNote(noteData: Partial<BKNote>): Promise<{ success: boolean; note?: BKNote; message?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/bk/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(noteData)
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      return data;
+    } catch (err) {
+      return { success: false, error: 'Gagal menambah catatan Bimbingan BK.' };
+    }
+  },
+
+  async updateBKNote(id: string, noteData: Partial<BKNote>): Promise<{ success: boolean; note?: BKNote; message?: string; error?: string }> {
+    try {
+      const res = await fetch(`/api/bk/notes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(noteData)
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      return data;
+    } catch (err) {
+      return { success: false, error: 'Gagal memperbarui catatan BK.' };
+    }
+  },
+
+  async deleteBKNote(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const res = await fetch(`/api/bk/notes/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error };
+      return data;
+    } catch (err) {
+      return { success: false, error: 'Gagal menghapus catatan BK.' };
     }
   },
 

@@ -3,7 +3,7 @@ import { User, Student, ClassRoom, AttendanceRecord, Teacher } from '../types';
 import {
   Users, UserCheck, Clock, Calendar, AlertTriangle, CheckCircle2,
   XCircle, TrendingUp, BarChart3, Activity, ArrowUpRight, ArrowRight,
-  Shield, School, FileSpreadsheet, Barcode, Sparkles, AlertCircle, Heart
+  Shield, School, FileSpreadsheet, Barcode, Sparkles, AlertCircle, Heart, Building2
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -189,6 +189,15 @@ export const MainDashboardOverview: React.FC<MainDashboardOverviewProps> = ({
               <Barcode className="w-4 h-4 text-emerald-950" />
               <span>Scan NISN</span>
             </button>
+            {user.role === 'admin' && (
+              <button
+                onClick={() => onNavigateTab('settings')}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-800 hover:bg-emerald-700 text-white font-extrabold rounded-2xl text-xs border border-emerald-600 shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                <Building2 className="w-4 h-4 text-amber-300" />
+                <span>Identitas & Presensi Sekolah</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

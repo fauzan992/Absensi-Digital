@@ -12,11 +12,13 @@ import { AttendanceSettingsSection } from './AttendanceSettingsSection';
 import { MonthlyAttendanceReport } from './MonthlyAttendanceReport';
 import { MainDashboardOverview } from './MainDashboardOverview';
 import { DisciplineAnalysis } from './DisciplineAnalysis';
+import { BKCounselingSection } from './BKCounselingSection';
+import { BKNote } from '../types';
 import {
   Users, UserCheck, GraduationCap, School, Barcode, FileSpreadsheet,
   Plus, Edit, Trash2, Search, Filter, Download, Upload, CheckCircle2,
   XCircle, Clock, AlertTriangle, RefreshCw, Key, ArrowDownToLine, Eye, DoorOpen,
-  Printer, CreditCard, Image as ImageIcon, Camera, X, Award
+  Printer, CreditCard, Image as ImageIcon, Camera, X, Award, HeartHandshake
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -24,10 +26,11 @@ interface AdminDashboardProps {
   teachers: Teacher[];
   classes: ClassRoom[];
   attendanceRecords: AttendanceRecord[];
+  bkNotes?: BKNote[];
   onRefreshData: () => void;
-  externalActiveTab?: 'dashboard' | 'master' | 'discipline' | 'scan' | 'reports' | 'import' | 'settings';
+  externalActiveTab?: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings';
   externalMasterSubTab?: 'students' | 'teachers' | 'classes' | 'guardians';
-  onTabChange?: (tab: 'dashboard' | 'master' | 'discipline' | 'scan' | 'reports' | 'import' | 'settings', subTab?: 'students' | 'teachers' | 'classes' | 'guardians') => void;
+  onTabChange?: (tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings', subTab?: 'students' | 'teachers' | 'classes' | 'guardians') => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -35,12 +38,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   teachers,
   classes,
   attendanceRecords,
+  bkNotes = [],
   onRefreshData,
   externalActiveTab,
   externalMasterSubTab,
   onTabChange
 }) => {
-  const [activeTab, setActiveTabState] = useState<'dashboard' | 'master' | 'discipline' | 'scan' | 'reports' | 'import' | 'settings'>('dashboard');
+  const [activeTab, setActiveTabState] = useState<'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings'>('dashboard');
   const [masterSubTab, setMasterSubTabState] = useState<'students' | 'teachers' | 'classes' | 'guardians'>('students');
 
   React.useEffect(() => {
@@ -51,7 +55,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (externalMasterSubTab) setMasterSubTabState(externalMasterSubTab);
   }, [externalMasterSubTab]);
 
-  const setActiveTab = (tab: 'dashboard' | 'master' | 'discipline' | 'scan' | 'reports' | 'import' | 'settings') => {
+  const setActiveTab = (tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings') => {
     setActiveTabState(tab);
     if (onTabChange) onTabChange(tab);
   };
@@ -117,6 +121,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Class Form Modal State
+  const [showClassModal, setShowClassModal] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassRoom | null>(null);
+  const [isSavingClass, setIsSavingClass] = useState(false);
+  const [classForm, setClassForm] = useState({
+    name: '',
+    gradeLevel: 'X' as 'X' | 'XI' | 'XII',
+    teacherId: ''
+  });
+
   // Teacher Form Modal State
   const [showTeacherModal, setShowTeacherModal] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
@@ -126,7 +140,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     gender: 'L' as 'L' | 'P',
     username: '',
     subject: '',
-    assignedClassId: ''
+    assignedClassId: '',
+    role: 'guru' as 'admin' | 'guru' | 'bk'
   });
 
   // Import file states
@@ -274,7 +289,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       gender: t.gender,
       username: t.username,
       subject: t.subject,
-      assignedClassId: t.assignedClassId || ''
+      assignedClassId: t.assignedClassId || '',
+      role: t.role || (t.subject.toLowerCase().includes('bk') ? 'bk' : 'guru')
     });
     setShowTeacherModal(true);
   };
@@ -287,7 +303,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       gender: 'L',
       username: '',
       subject: '',
-      assignedClassId: ''
+      assignedClassId: '',
+      role: 'guru'
     });
     setShowTeacherModal(true);
   };
@@ -296,6 +313,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     if (confirm(`Yakin ingin menghapus data guru ${name}?`)) {
       const res = await apiService.deleteTeacher(id);
       if (res.success) onRefreshData();
+    }
+  };
+
+  // Class Handlers
+  const handleSaveClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!classForm.name.trim()) {
+      alert('Nama kelas wajib diisi!');
+      return;
+    }
+    setIsSavingClass(true);
+    try {
+      if (editingClass) {
+        const res = await apiService.updateClass(editingClass.id, classForm);
+        if (res.success) {
+          onRefreshData();
+          setShowClassModal(false);
+        } else {
+          alert(res.error || 'Gagal memperbarui data kelas');
+        }
+      } else {
+        const res = await apiService.addClass(classForm);
+        if (res.success) {
+          onRefreshData();
+          setShowClassModal(false);
+        } else {
+          alert(res.error || 'Gagal menambah kelas baru');
+        }
+      }
+    } catch (err: any) {
+      alert(err?.message || 'Terjadi kesalahan saat menyimpan kelas.');
+    } finally {
+      setIsSavingClass(false);
+    }
+  };
+
+  const handleOpenEditClass = (cls: ClassRoom) => {
+    setEditingClass(cls);
+    setClassForm({
+      name: cls.name,
+      gradeLevel: cls.gradeLevel,
+      teacherId: cls.teacherId || ''
+    });
+    setShowClassModal(true);
+  };
+
+  const handleOpenNewClass = () => {
+    setEditingClass(null);
+    setClassForm({
+      name: '',
+      gradeLevel: 'X',
+      teacherId: ''
+    });
+    setShowClassModal(true);
+  };
+
+  const handleDeleteClass = async (id: string, name: string) => {
+    if (confirm(`Yakin ingin menghapus kelas ${name}?`)) {
+      const res = await apiService.deleteClass(id);
+      if (res.success) {
+        onRefreshData();
+      } else {
+        alert(res.error || 'Gagal menghapus kelas.');
+      }
     }
   };
 
@@ -552,6 +633,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <Plus className="w-4 h-4" /> Tambah Guru
                   </button>
                 )}
+
+                {masterSubTab === 'classes' && (
+                  <button
+                    onClick={handleOpenNewClass}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Tambah Kelas
+                  </button>
+                )}
               </div>
 
               {/* SUBTAB: DATA SISWA */}
@@ -617,7 +707,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <th className="p-3">L/P</th>
                           <th className="p-3">Kelas</th>
                           <th className="p-3">Wali Murid</th>
-                          <th className="p-3">Password Wali</th>
                           <th className="p-3 text-right">Aksi</th>
                         </tr>
                       </thead>
@@ -671,7 +760,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <td className="p-3">{st.gender}</td>
                               <td className="p-3 font-semibold text-slate-700">{st.className}</td>
                               <td className="p-3">{st.parentName} ({st.parentPhone})</td>
-                              <td className="p-3 font-mono text-slate-500">{st.defaultPassword || '123'}</td>
                               <td className="p-3 text-right space-x-1">
                                 <button
                                   onClick={() => handleOpenEditStudent(st)}
@@ -707,6 +795,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <th className="p-3">NIP</th>
                         <th className="p-3">Nama Guru</th>
                         <th className="p-3">Mata Pelajaran</th>
+                        <th className="p-3">Role Akses</th>
                         <th className="p-3">Username Login</th>
                         <th className="p-3">Wali Kelas</th>
                         <th className="p-3 text-right">Aksi</th>
@@ -719,6 +808,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <td className="p-3 font-mono font-bold text-slate-800">{t.nip}</td>
                           <td className="p-3 font-bold text-slate-900">{t.name}</td>
                           <td className="p-3">{t.subject}</td>
+                          <td className="p-3 font-semibold">
+                            {t.role === 'admin' ? (
+                              <span className="px-2 py-0.5 text-[10px] font-extrabold text-purple-700 bg-purple-100 rounded-full border border-purple-200">
+                                Admin
+                              </span>
+                            ) : t.role === 'bk' ? (
+                              <span className="px-2 py-0.5 text-[10px] font-extrabold text-amber-700 bg-amber-100 rounded-full border border-amber-200">
+                                Guru BK
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 text-[10px] font-extrabold text-blue-700 bg-blue-100 rounded-full border border-blue-200">
+                                Guru Pengajar
+                              </span>
+                            )}
+                          </td>
                           <td className="p-3 font-mono text-emerald-700">{t.username}</td>
                           <td className="p-3 font-semibold text-slate-700">{t.assignedClassName || '-'}</td>
                           <td className="p-3 text-right space-x-1">
@@ -744,21 +848,70 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
               {/* SUBTAB: DATA KELAS */}
               {masterSubTab === 'classes' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {classes.map(c => (
-                    <div key={c.id} className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 hover:border-emerald-300 transition-all">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                          Tingkat {c.gradeLevel}
-                        </span>
-                        <span className="text-xs text-slate-500 font-bold">{c.studentCount} Siswa</span>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-slate-500 font-medium">
+                      Total <strong>{classes.length}</strong> kelas terdaftar di SMA Islam Ra'iyatul Husnan.
+                    </p>
+                    <button
+                      onClick={handleOpenNewClass}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer md:hidden"
+                    >
+                      <Plus className="w-4 h-4" /> Tambah Kelas
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {classes.map(c => (
+                      <div key={c.id} className="p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 hover:border-emerald-300 transition-all flex flex-col justify-between group relative shadow-2xs">
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                              Tingkat {c.gradeLevel}
+                            </span>
+                            <span className="text-xs text-slate-500 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                              {c.studentCount} Siswa
+                            </span>
+                          </div>
+                          <h4 className="font-extrabold text-slate-900 text-lg group-hover:text-emerald-800 transition-colors">
+                            {c.name}
+                          </h4>
+                          <p className="text-xs text-slate-600">
+                            Wali Kelas: <strong className="text-slate-900">{c.teacherName || 'Belum ditugaskan'}</strong>
+                          </p>
+                        </div>
+
+                        <div className="pt-3 border-t border-slate-200/80 flex justify-end gap-2">
+                          <button
+                            onClick={() => handleOpenEditClass(c)}
+                            className="px-2.5 py-1.5 bg-white hover:bg-blue-50 text-blue-600 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                            title="Edit Data Kelas"
+                          >
+                            <Edit className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteClass(c.id, c.name)}
+                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                            title="Hapus Kelas"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Hapus
+                          </button>
+                        </div>
                       </div>
-                      <h4 className="font-extrabold text-slate-900 text-lg">{c.name}</h4>
-                      <p className="text-xs text-slate-600">
-                        Wali Kelas: <strong className="text-slate-900">{c.teacherName || 'Belum ditugaskan'}</strong>
-                      </p>
-                    </div>
-                  ))}
+                    ))}
+
+                    {/* Card Tambah Kelas Baru */}
+                    <button
+                      onClick={handleOpenNewClass}
+                      className="p-5 border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/50 rounded-2xl flex flex-col items-center justify-center text-center transition-all cursor-pointer group min-h-[140px]"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 group-hover:bg-emerald-600 group-hover:text-white text-emerald-700 flex items-center justify-center transition-all mb-2">
+                        <Plus className="w-5 h-5" />
+                      </div>
+                      <span className="font-extrabold text-sm text-slate-700 group-hover:text-emerald-800">Tambah Kelas Baru</span>
+                      <span className="text-[11px] text-slate-400 mt-0.5">Buat data rombel / kelas baru</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -774,7 +927,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <th className="p-3">Nama Anak (Siswa)</th>
                         <th className="p-3">NISN (Username Login)</th>
                         <th className="p-3">Kelas</th>
-                        <th className="p-3">Password Default</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -786,9 +938,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <td className="p-3 font-semibold text-emerald-800">{st.name}</td>
                           <td className="p-3 font-mono font-bold text-slate-700">{st.nisn}</td>
                           <td className="p-3">{st.className}</td>
-                          <td className="p-3 font-mono text-emerald-700 bg-emerald-50 px-2 rounded inline-block my-1 border border-emerald-200 font-bold">
-                            {st.defaultPassword || '123'}
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -1205,6 +1354,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
           )}
 
+          {/* TAB 4.5: LAYANAN BIMBINGAN KONSELING (BK) */}
+          {activeTab === 'bk' && (
+            <BKCounselingSection
+              user={{ id: 'admin-1', username: 'admin', name: 'Administrator / Guru BK', role: 'admin' }}
+              students={students}
+              classes={classes}
+              attendanceRecords={attendanceRecords}
+              bkNotes={bkNotes}
+              onRefreshData={onRefreshData}
+            />
+          )}
+
           {/* TAB 5: PENGATURAN JAM ABSENSI & HARI LIBUR */}
           {activeTab === 'settings' && (
             <AttendanceSettingsSection onSettingsUpdated={onRefreshData} />
@@ -1412,6 +1573,94 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
       )}
 
+      {/* Modal Add/Edit Class Form */}
+      {showClassModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900 text-lg flex items-center gap-2">
+                <School className="w-5 h-5 text-emerald-600" />
+                {editingClass ? 'Edit Data Kelas' : 'Tambah Kelas Baru'}
+              </h3>
+              <button
+                onClick={() => setShowClassModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveClass} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nama Kelas*</label>
+                <input
+                  type="text"
+                  required
+                  value={classForm.name}
+                  onChange={(e) => setClassForm({ ...classForm, name: e.target.value })}
+                  placeholder="Misal: X MIPA 1, XI IPS 2"
+                  className="w-full p-2.5 border border-slate-300 rounded-xl font-extrabold text-sm focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Tingkat Kelas*</label>
+                <select
+                  value={classForm.gradeLevel}
+                  onChange={(e) => setClassForm({ ...classForm, gradeLevel: e.target.value as 'X' | 'XI' | 'XII' })}
+                  className="w-full p-2.5 border border-slate-300 rounded-xl font-bold bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                >
+                  <option value="X">Tingkat X (Sepuluh)</option>
+                  <option value="XI">Tingkat XI (Sebelas)</option>
+                  <option value="XII">Tingkat XII (Dua Belas)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Wali Kelas (Opsional)</label>
+                <select
+                  value={classForm.teacherId}
+                  onChange={(e) => setClassForm({ ...classForm, teacherId: e.target.value })}
+                  className="w-full p-2.5 border border-slate-300 rounded-xl bg-white focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+                >
+                  <option value="">-- Belum Ditugaskan / Tanpa Wali Kelas --</option>
+                  {teachers.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.subject})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isSavingClass}
+                  onClick={() => setShowClassModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingClass}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold cursor-pointer flex items-center gap-2 disabled:opacity-50 shadow-sm"
+                >
+                  {isSavingClass ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span>Menyimpan Kelas...</span>
+                    </>
+                  ) : (
+                    <span>{editingClass ? 'Simpan Perubahan' : 'Buat Kelas'}</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal Add/Edit Teacher Form */}
       {showTeacherModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -1467,6 +1716,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     className="w-full p-2 border border-slate-300 rounded-lg"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Role Akses Sistem*</label>
+                <select
+                  value={teacherForm.role}
+                  onChange={(e) => setTeacherForm({ ...teacherForm, role: e.target.value as 'admin' | 'guru' | 'bk' })}
+                  className="w-full p-2 border border-slate-300 rounded-lg bg-white font-bold text-slate-800"
+                >
+                  <option value="guru">Guru Pengajar (Akses Absensi & Jurnal Kelas)</option>
+                  <option value="bk">Guru BK / Bimbingan Konseling (Akses Layanan BK)</option>
+                  <option value="admin">Administrator / Operator (Akses Penuh Master Data & System)</option>
+                </select>
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  Menentukan jenis portal & hak akses akun saat guru login ke sistem.
+                </p>
               </div>
 
               <div>
