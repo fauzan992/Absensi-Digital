@@ -524,3 +524,41 @@ export async function pullAllFromSupabase(): Promise<{
     return { success: false, message: `Gagal mengimpor dari Supabase: ${err.message}` };
   }
 }
+
+export async function deleteTeacherFromSupabase(id: string, nip?: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    if (id) await supabase.from('teachers').delete().eq('id', id);
+    if (nip) await supabase.from('teachers').delete().eq('nip', nip);
+    if (id) {
+      await supabase.from('classes').update({ teacher_id: null, teacher_name: null }).eq('teacher_id', id);
+    }
+  } catch (err) {
+    console.error('Error deleting teacher from Supabase:', err);
+  }
+}
+
+export async function deleteClassFromSupabase(id: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    if (id) await supabase.from('classes').delete().eq('id', id);
+    if (id) {
+      await supabase.from('teachers').update({ assigned_class_id: null, assigned_class_name: null }).eq('assigned_class_id', id);
+    }
+  } catch (err) {
+    console.error('Error deleting class from Supabase:', err);
+  }
+}
+
+export async function deleteStudentFromSupabase(id: string, nisn?: string) {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    if (id) await supabase.from('students').delete().eq('id', id);
+    if (nisn) await supabase.from('students').delete().eq('nisn', nisn);
+  } catch (err) {
+    console.error('Error deleting student from Supabase:', err);
+  }
+}

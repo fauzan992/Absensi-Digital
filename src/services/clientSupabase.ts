@@ -17,8 +17,8 @@ export interface ClientSupabaseConfig {
 
 // Get saved config from localStorage
 export function getStoredSupabaseConfig(): ClientSupabaseConfig {
-  const url = localStorage.getItem(STORAGE_KEY_URL) || 'https://zxnkiqupojwydazkurfv.supabase.co';
-  const anonKey = localStorage.getItem(STORAGE_KEY_KEY) || 'sb_publishable_PvMiB0Or-lpYWjVSaa0FeQ_a33a0ISz';
+  const url = localStorage.getItem(STORAGE_KEY_URL) || '';
+  const anonKey = localStorage.getItem(STORAGE_KEY_KEY) || '';
   const autoSync = localStorage.getItem(STORAGE_KEY_AUTO) !== 'false';
   const lastSyncTime = localStorage.getItem(STORAGE_KEY_LAST_SYNC) || undefined;
 
@@ -49,8 +49,8 @@ export function setStoredSupabaseConfig(url: string, anonKey: string, autoSync: 
 
 // Get Supabase browser client
 export function getBrowserSupabaseClient(url?: string, anonKey?: string): SupabaseClient | null {
-  const targetUrl = url || localStorage.getItem(STORAGE_KEY_URL) || 'https://zxnkiqupojwydazkurfv.supabase.co';
-  const targetKey = anonKey || localStorage.getItem(STORAGE_KEY_KEY) || 'sb_publishable_PvMiB0Or-lpYWjVSaa0FeQ_a33a0ISz';
+  const targetUrl = url || localStorage.getItem(STORAGE_KEY_URL) || '';
+  const targetKey = anonKey || localStorage.getItem(STORAGE_KEY_KEY) || '';
 
   if (!targetUrl || !targetKey) return null;
 
@@ -276,6 +276,10 @@ export async function pullAllFromBrowser(url: string, anonKey: string): Promise<
 
     const nowIso = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY_LAST_SYNC, nowIso);
+    localStorage.setItem('app_master_classes', JSON.stringify(classes));
+    localStorage.setItem('app_master_teachers', JSON.stringify(teachers));
+    localStorage.setItem('app_master_students', JSON.stringify(students));
+    localStorage.setItem('app_attendance_records', JSON.stringify(attendance));
 
     return {
       success: true,
@@ -284,5 +288,43 @@ export async function pullAllFromBrowser(url: string, anonKey: string): Promise<
     };
   } catch (err: any) {
     return { success: false, error: err.message || 'Gagal mengambil data dari Supabase.' };
+  }
+}
+
+export async function deleteTeacherFromBrowserSupabase(id: string, nip?: string) {
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    if (id) await supabase.from('teachers').delete().eq('id', id);
+    if (nip) await supabase.from('teachers').delete().eq('nip', nip);
+    if (id) {
+      await supabase.from('classes').update({ teacher_id: null, teacher_name: null }).eq('teacher_id', id);
+    }
+  } catch (e) {
+    console.warn('Error deleting teacher from Supabase browser client:', e);
+  }
+}
+
+export async function deleteClassFromBrowserSupabase(id: string) {
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    if (id) await supabase.from('classes').delete().eq('id', id);
+    if (id) {
+      await supabase.from('teachers').update({ assigned_class_id: null, assigned_class_name: null }).eq('assigned_class_id', id);
+    }
+  } catch (e) {
+    console.warn('Error deleting class from Supabase browser client:', e);
+  }
+}
+
+export async function deleteStudentFromBrowserSupabase(id: string, nisn?: string) {
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    if (id) await supabase.from('students').delete().eq('id', id);
+    if (nisn) await supabase.from('students').delete().eq('nisn', nisn);
+  } catch (e) {
+    console.warn('Error deleting student from Supabase browser client:', e);
   }
 }

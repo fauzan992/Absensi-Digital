@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserRole, User } from '../types';
+import { User } from '../types';
 import { apiService } from '../services/apiService';
 import { Shield, GraduationCap, Heart, Key, Lock, UserCheck, AlertCircle, Sparkles, Users } from 'lucide-react';
 import { SchoolLogo } from './SchoolLogo';
@@ -12,8 +12,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   // 2 main form types: 'staff' (Guru/Admin) and 'wali' (Wali Murid)
   const [formType, setFormType] = useState<'staff' | 'wali'>('staff');
   
-  // Under the hood roles: 'admin' | 'guru' | 'wali'
-  const [selectedRole, setSelectedRole] = useState<UserRole>('admin');
   const [username, setUsername] = useState('admin');
   const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
@@ -23,25 +21,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     setFormType(type);
     setErrorMsg(null);
     if (type === 'staff') {
-      setSelectedRole('admin');
       setUsername('admin');
       setPassword('admin123');
     } else {
-      setSelectedRole('wali');
       setUsername('0061234501');
       setPassword('123');
-    }
-  };
-
-  const handleSubRoleChange = (role: 'admin' | 'guru') => {
-    setSelectedRole(role);
-    setErrorMsg(null);
-    if (role === 'admin') {
-      setUsername('admin');
-      setPassword('admin123');
-    } else {
-      setUsername('ahmad');
-      setPassword('guru123');
     }
   };
 
@@ -52,24 +36,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setErrorMsg(null);
 
-    const activeRole = formType === 'wali' ? 'wali' : selectedRole;
+    const activeRole = formType === 'wali' ? 'wali' : 'staff';
     const res = await apiService.login(activeRole, username, formType === 'wali' ? '' : password);
     setLoading(false);
 
     if (res.success && res.user) {
       onLoginSuccess(res.user);
     } else {
-      setErrorMsg(res.error || 'Login gagal. Periksa kembali NISN atau kredensial Anda.');
+      setErrorMsg(res.error || 'Login gagal. Periksa kembali username/NISN dan password Anda.');
     }
   };
 
-  const handleQuickFill = (role: UserRole, u: string, p: string) => {
-    if (role === 'admin' || role === 'guru') {
-      setFormType('staff');
-      setSelectedRole(role);
-    } else {
+  const handleQuickFill = (u: string, p: string, isWali = false) => {
+    if (isWali) {
       setFormType('wali');
-      setSelectedRole('wali');
+    } else {
+      setFormType('staff');
     }
     setUsername(u);
     setPassword(p);
@@ -104,7 +86,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
               }`}
             >
               <UserCheck className="w-4 h-4 text-amber-300" />
-              <span>1. Guru / Admin</span>
+              <span>Guru / Admin</span>
             </button>
 
             <button
@@ -117,7 +99,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
               }`}
             >
               <Heart className="w-4 h-4 text-rose-300" />
-              <span>2. Wali Murid</span>
+              <span>Wali Murid</span>
             </button>
           </div>
 
@@ -130,14 +112,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
               <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('admin', 'admin', 'admin123')}
+                  onClick={() => handleQuickFill('admin', 'admin123')}
                   className="text-[10px] font-bold px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-amber-900 cursor-pointer flex items-center gap-1 shadow-2xs"
                 >
                   <Shield className="w-3 h-3 text-amber-700" /> Admin (admin / admin123)
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('guru', 'ahmad', 'guru123')}
+                  onClick={() => handleQuickFill('ahmad', 'guru123')}
                   className="text-[10px] font-bold px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-amber-900 cursor-pointer flex items-center gap-1 shadow-2xs"
                 >
                   <GraduationCap className="w-3 h-3 text-amber-700" /> Guru (ahmad / guru123)
@@ -146,7 +128,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             ) : (
               <button
                 type="button"
-                onClick={() => handleQuickFill('wali', '0061234501', '')}
+                onClick={() => handleQuickFill('0061234501', '', true)}
                 className="text-[10px] font-bold px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-amber-900 cursor-pointer flex items-center gap-1 shadow-2xs"
               >
                 <Heart className="w-3 h-3 text-rose-600" /> Wali Murid (Coba NISN: 0061234501)
@@ -154,41 +136,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             )}
           </div>
 
-          {/* FORM 1: GURU & ADMIN */}
+          {/* FORM: GURU & ADMIN */}
           {formType === 'staff' && (
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Sub-Role Selector within Staff Form */}
-              <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200">
-                <span className="text-[11px] font-bold text-slate-600 pl-1">Masuk Sebagai:</span>
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleSubRoleChange('admin')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      selectedRole === 'admin'
-                        ? 'bg-amber-400 text-slate-950 font-extrabold shadow-xs'
-                        : 'text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    <Shield className="w-3 h-3" /> Admin Sekolah
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleSubRoleChange('guru')}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      selectedRole === 'guru'
-                        ? 'bg-amber-400 text-slate-950 font-extrabold shadow-xs'
-                        : 'text-slate-600 hover:bg-slate-200'
-                    }`}
-                  >
-                    <GraduationCap className="w-3 h-3" /> Guru / Wali Kelas
-                  </button>
-                </div>
-              </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  {selectedRole === 'admin' ? 'Username Admin' : 'NIP / Username Guru'}
+                  Username / NIP
                 </label>
                 <div className="relative">
                   <Key className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
@@ -197,7 +150,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder={selectedRole === 'admin' ? 'Contoh: admin' : 'NIP atau Username (Cth: ahmad)'}
+                    placeholder="Masukkan Username atau NIP (Cth: admin / ahmad)"
                     className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
                   />
                 </div>
@@ -233,14 +186,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
                 {loading ? 'Memproses Authentikasi...' : (
                   <>
                     <UserCheck className="w-4 h-4 text-amber-300" />
-                    <span>MASUK SEBAGAI {selectedRole === 'admin' ? 'ADMIN' : 'GURU'}</span>
+                    <span>MASUK SEBAGAI GURU / ADMIN</span>
                   </>
                 )}
               </button>
             </form>
           )}
 
-          {/* FORM 2: WALI MURID */}
+          {/* FORM: WALI MURID */}
           {formType === 'wali' && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-medium flex items-start gap-2.5">

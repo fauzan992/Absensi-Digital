@@ -20,6 +20,9 @@ import {
   pushAllToSupabase,
   pullAllFromSupabase,
   uploadStudentPhotoToSupabase,
+  deleteTeacherFromSupabase,
+  deleteClassFromSupabase,
+  deleteStudentFromSupabase,
   SUPABASE_SQL_SCHEMA
 } from './src/services/supabaseService';
 
@@ -215,93 +218,15 @@ async function startServer() {
   app.post('/api/auth/login', (req, res) => {
     const { role, username, password } = req.body;
 
-    if (!role || !username) {
-      return res.status(400).json({ error: 'Role dan ID/Username/NISN wajib diisi.' });
+    if (!username) {
+      return res.status(400).json({ error: 'Username/NIP/NISN wajib diisi.' });
     }
 
-    if (role === 'admin') {
-      if (!password) {
-        return res.status(400).json({ error: 'Password Admin wajib diisi.' });
-      }
-      // Check default admin account OR teacher with role === 'admin'
-      const adminTeacher = teachersDB.find(t => t.role === 'admin' && (t.username.toLowerCase() === username.toLowerCase() || t.nip === username));
-      if ((username === 'admin' || username === 'admin@smaislam.sch.id') && password === 'admin123') {
-        const adminUser: User = {
-          id: 'admin-1',
-          username: 'admin',
-          name: 'Administrator Utama',
-          role: 'admin'
-        };
-        return res.json({ success: true, user: adminUser });
-      } else if (adminTeacher && (password === 'admin123' || password === 'guru123' || password === adminTeacher.nip.slice(-6) || password === '123')) {
-        const adminUser: User = {
-          id: adminTeacher.id,
-          username: adminTeacher.username,
-          name: adminTeacher.name,
-          role: 'admin',
-          nip: adminTeacher.nip
-        };
-        return res.json({ success: true, user: adminUser });
-      } else {
-        return res.status(401).json({ error: 'Username atau password Admin salah! (Default: admin / admin123)' });
-      }
-    }
-
-    if (role === 'bk') {
-      if (!password) {
-        return res.status(400).json({ error: 'Password Guru BK wajib diisi.' });
-      }
-      const bkTeacher = teachersDB.find(
-        t => (t.role === 'bk' || t.username.toLowerCase() === username.toLowerCase() || t.nip === username || t.id === 'tch-bk')
-      ) || teachersDB.find(t => t.subject.toLowerCase().includes('bk') || t.subject.toLowerCase().includes('konseling'));
-
-      if (bkTeacher && (password === 'guru123' || password === 'bk123' || password === bkTeacher.nip.slice(-6) || password === '123')) {
-        const bkUser: User = {
-          id: bkTeacher.id,
-          username: bkTeacher.username,
-          name: bkTeacher.name,
-          role: 'bk',
-          nip: bkTeacher.nip
-        };
-        return res.json({ success: true, user: bkUser });
-      } else {
-        const defaultBkUser: User = {
-          id: 'tch-bk',
-          username: 'rahma',
-          name: 'Ibu Rahmawati, S.Psi',
-          role: 'bk',
-          nip: '199105152016022005'
-        };
-        return res.json({ success: true, user: defaultBkUser });
-      }
-    }
-
-    if (role === 'guru') {
-      if (!password) {
-        return res.status(400).json({ error: 'Password Guru wajib diisi.' });
-      }
-      const teacher = teachersDB.find(
-        t => (t.username.toLowerCase() === username.toLowerCase() || t.nip === username)
-      );
-
-      if (teacher && (password === 'guru123' || password === teacher.nip.slice(-6) || password === '123')) {
-        const teacherUser: User = {
-          id: teacher.id,
-          username: teacher.username,
-          name: teacher.name,
-          role: (teacher.role as UserRole) || 'guru',
-          nip: teacher.nip,
-          classId: teacher.assignedClassId,
-          className: teacher.assignedClassName
-        };
-        return res.json({ success: true, user: teacherUser });
-      } else {
-        return res.status(401).json({ error: 'NIP/Username atau password Guru salah! (Default pass: guru123)' });
-      }
-    }
+    const trimmedUsername = username.trim();
+    const trimmedPassword = (password || '').trim();
 
     if (role === 'wali') {
-      const student = studentsDB.find(s => s.nisn === username.trim());
+      const student = studentsDB.find(s => s.nisn === trimmedUsername);
 
       if (student) {
         const waliUser: User = {
@@ -316,11 +241,67 @@ async function startServer() {
         };
         return res.json({ success: true, user: waliUser, student });
       } else {
-        return res.status(401).json({ error: `NISN Siswa ${username} tidak ditemukan dalam database sekolah.` });
+        return res.status(404).json({ error: `NISN Siswa ${trimmedUsername} tidak ditemukan dalam database sekolah.` });
       }
     }
 
-    return res.status(400).json({ error: 'Role pengguna tidak valid.' });
+    // Auto-detect Staff Role (Admin / Guru / BK) based on Username & Password
+    const lowerUname = trimmedUsername.toLowerCase();
+
+    // 1. Check Default Admin Account
+    if ((lowerUname === 'admin' || lowerUname === 'admin@smaislam.sch.id' || lowerUname === '123456') && (trimmedPassword === 'admin123' || trimmedPassword === '123456' || trimmedPassword === '123')) {
+      const adminUser: User = {
+        id: 'admin-1',
+        username: 'admin',
+        name: 'Administrator Utama',
+        role: 'admin'
+      };
+      return res.json({ success: true, user: adminUser });
+    }
+
+    // 2. Check Teacher in DB (Guru / BK / Admin Teacher)
+    const teacher = teachersDB.find(
+      t => (t.username.toLowerCase() === lowerUname || t.nip === trimmedUsername)
+    );
+
+    if (teacher) {
+      const validPass = trimmedPassword === 'guru123' || 
+                        trimmedPassword === 'admin123' || 
+                        trimmedPassword === 'bk123' ||
+                        trimmedPassword === '123' || 
+                        trimmedPassword === teacher.nip || 
+                        trimmedPassword === teacher.nip.slice(-6);
+
+      if (validPass) {
+        const teacherRole: UserRole = (teacher.role as UserRole) || 'guru';
+        const userObj: User = {
+          id: teacher.id,
+          username: teacher.username,
+          name: teacher.name,
+          role: teacherRole,
+          nip: teacher.nip,
+          classId: teacher.assignedClassId,
+          className: teacher.assignedClassName
+        };
+        return res.json({ success: true, user: userObj });
+      } else {
+        return res.status(401).json({ error: 'Password yang Anda masukkan salah.' });
+      }
+    }
+
+    // 3. Check BK default alias
+    if ((lowerUname === 'bk' || lowerUname === 'rahma') && (trimmedPassword === 'bk123' || trimmedPassword === 'guru123' || trimmedPassword === 'admin123' || trimmedPassword === '123')) {
+      const defaultBkUser: User = {
+        id: 'tch-bk',
+        username: 'rahma',
+        name: 'Ibu Rahmawati, S.Psi',
+        role: 'bk',
+        nip: '199105152016022005'
+      };
+      return res.json({ success: true, user: defaultBkUser });
+    }
+
+    return res.status(401).json({ error: 'Username/NIP atau password yang Anda masukkan salah.' });
   });
 
   // Get master data
@@ -416,6 +397,7 @@ async function startServer() {
     });
 
     persistData();
+    deleteStudentFromSupabase(id, student.nisn).catch(e => console.error('Error deleting student from Supabase:', e));
     res.json({ success: true, message: 'Data siswa berhasil dihapus!' });
   });
 
@@ -508,6 +490,7 @@ async function startServer() {
 
   app.delete('/api/master/teachers/:id', (req, res) => {
     const { id } = req.params;
+    const teacher = teachersDB.find(t => t.id === id);
     teachersDB = teachersDB.filter(t => t.id !== id);
     classesDB.forEach(c => {
       if (c.teacherId === id) {
@@ -516,6 +499,7 @@ async function startServer() {
       }
     });
     persistData();
+    deleteTeacherFromSupabase(id, teacher?.nip).catch(e => console.error('Error deleting teacher from Supabase:', e));
     res.json({ success: true, message: 'Data guru berhasil dihapus!' });
   });
 
@@ -648,6 +632,7 @@ async function startServer() {
 
     classesDB = classesDB.filter(c => c.id !== id);
     persistData();
+    deleteClassFromSupabase(id).catch(e => console.error('Error deleting class from Supabase:', e));
     res.json({ success: true, message: `Kelas "${cls.name}" berhasil dihapus!` });
   });
 

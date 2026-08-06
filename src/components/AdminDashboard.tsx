@@ -144,6 +144,54 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     role: 'guru' as 'admin' | 'guru' | 'bk'
   });
 
+  // Delete Target Modal State
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'siswa' | 'guru' | 'kelas';
+    id: string;
+    name: string;
+    detail?: string;
+  } | null>(null);
+  const [isDeletingTarget, setIsDeletingTarget] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleConfirmDeleteTarget = async () => {
+    if (!deleteTarget) return;
+    setIsDeletingTarget(true);
+    setDeleteError(null);
+
+    try {
+      if (deleteTarget.type === 'siswa') {
+        const res = await apiService.deleteStudent(deleteTarget.id);
+        if (res.success) {
+          onRefreshData();
+          setDeleteTarget(null);
+        } else {
+          setDeleteError(res.error || 'Gagal menghapus data siswa.');
+        }
+      } else if (deleteTarget.type === 'guru') {
+        const res = await apiService.deleteTeacher(deleteTarget.id);
+        if (res.success) {
+          onRefreshData();
+          setDeleteTarget(null);
+        } else {
+          setDeleteError(res.error || 'Gagal menghapus data guru.');
+        }
+      } else if (deleteTarget.type === 'kelas') {
+        const res = await apiService.deleteClass(deleteTarget.id);
+        if (res.success) {
+          onRefreshData();
+          setDeleteTarget(null);
+        } else {
+          setDeleteError(res.error || 'Gagal menghapus data kelas.');
+        }
+      }
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Terjadi kesalahan sistem saat menghapus data.');
+    } finally {
+      setIsDeletingTarget(false);
+    }
+  };
+
   // Import file states
   const [importType, setImportType] = useState<'siswa' | 'guru'>('siswa');
   const [importPreviewData, setImportPreviewData] = useState<any[]>([]);
@@ -252,11 +300,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   // Delete Student
-  const handleDeleteStudent = async (id: string, name: string) => {
-    if (confirm(`Yakin ingin menghapus data siswa ${name}?`)) {
-      const res = await apiService.deleteStudent(id);
-      if (res.success) onRefreshData();
-    }
+  const handleDeleteStudent = (st: Student) => {
+    setDeleteError(null);
+    setDeleteTarget({
+      type: 'siswa',
+      id: st.id,
+      name: st.name,
+      detail: `NISN: ${st.nisn} • Kelas: ${st.className}`
+    });
   };
 
   // Handle Save Teacher
@@ -309,11 +360,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setShowTeacherModal(true);
   };
 
-  const handleDeleteTeacher = async (id: string, name: string) => {
-    if (confirm(`Yakin ingin menghapus data guru ${name}?`)) {
-      const res = await apiService.deleteTeacher(id);
-      if (res.success) onRefreshData();
-    }
+  const handleDeleteTeacher = (t: Teacher) => {
+    setDeleteError(null);
+    setDeleteTarget({
+      type: 'guru',
+      id: t.id,
+      name: t.name,
+      detail: `NIP: ${t.nip || '-'} • Mapel: ${t.subject}`
+    });
   };
 
   // Class Handlers
@@ -369,15 +423,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setShowClassModal(true);
   };
 
-  const handleDeleteClass = async (id: string, name: string) => {
-    if (confirm(`Yakin ingin menghapus kelas ${name}?`)) {
-      const res = await apiService.deleteClass(id);
-      if (res.success) {
-        onRefreshData();
-      } else {
-        alert(res.error || 'Gagal menghapus kelas.');
-      }
-    }
+  const handleDeleteClass = (c: ClassRoom) => {
+    setDeleteError(null);
+    setDeleteTarget({
+      type: 'kelas',
+      id: c.id,
+      name: c.name,
+      detail: `Tingkat ${c.gradeLevel} • Total ${c.studentCount} Siswa`
+    });
   };
 
   // File import parser
@@ -769,7 +822,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   <Edit className="w-3.5 h-3.5" />
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteStudent(st.id, st.name)}
+                                  onClick={() => handleDeleteStudent(st)}
                                   className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
                                   title="Hapus Siswa"
                                 >
@@ -833,7 +886,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               <Edit className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              onClick={() => handleDeleteTeacher(t.id, t.name)}
+                              onClick={() => handleDeleteTeacher(t)}
                               className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -890,7 +943,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <Edit className="w-3.5 h-3.5" /> Edit
                           </button>
                           <button
-                            onClick={() => handleDeleteClass(c.id, c.name)}
+                            onClick={() => handleDeleteClass(c)}
                             className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
                             title="Hapus Kelas"
                           >
@@ -1764,6 +1817,85 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Popup Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden transform transition-all">
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-rose-100 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
+                  <Trash2 className="w-5 h-5" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Konfirmasi Hapus Data {deleteTarget.type === 'siswa' ? 'Siswa' : deleteTarget.type === 'guru' ? 'Guru' : 'Kelas'}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Apakah Anda yakin ingin menghapus data ini?
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={isDeletingTarget}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-1.5">
+                <div className="text-sm font-extrabold text-slate-900">
+                  {deleteTarget.name}
+                </div>
+                {deleteTarget.detail && (
+                  <div className="text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg inline-block">
+                    {deleteTarget.detail}
+                  </div>
+                )}
+                <p className="text-[11px] text-slate-500 pt-1">
+                  ⚠️ Data yang telah dihapus akan terhapus dari sistem dan tidak dapat dikembalikan.
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-semibold text-rose-700 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 mt-0.5" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isDeletingTarget}
+                  onClick={() => setDeleteTarget(null)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeletingTarget}
+                  onClick={handleConfirmDeleteTarget}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeletingTarget ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Menghapus...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" /> Ya, Hapus Data
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
