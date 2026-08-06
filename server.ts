@@ -25,6 +25,7 @@ import {
   deleteStudentFromSupabase,
   SUPABASE_SQL_SCHEMA
 } from './src/services/supabaseService';
+import { syncClassesAndStudentsData, findMatchingClass, inferGradeLevel } from './src/utils/dataSync';
 
 // In-memory data store for the application
 let classesDB: ClassRoom[] = [...INITIAL_CLASSES];
@@ -75,13 +76,26 @@ if (savedBackup) {
   if (savedBackup.attendance && savedBackup.attendance.length > 0) attendanceDB = savedBackup.attendance;
   if (savedBackup.bkNotes && savedBackup.bkNotes.length > 0) bkNotesDB = savedBackup.bkNotes;
   if (savedBackup.settings) schoolSettingsDB = { ...schoolSettingsDB, ...savedBackup.settings };
-} else {
+}
+
+// Initial auto-sync of class, student, and teacher relations
+const initialSynced = syncClassesAndStudentsData(classesDB, studentsDB, teachersDB);
+classesDB = initialSynced.classes;
+studentsDB = initialSynced.students;
+teachersDB = initialSynced.teachers;
+
+if (!savedBackup) {
   // Save initial mock data to local backup
   saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, bkNotes: bkNotesDB, settings: schoolSettingsDB });
 }
 
 // Helper to save local DB & background push to Supabase if enabled
 const persistData = () => {
+  const synced = syncClassesAndStudentsData(classesDB, studentsDB, teachersDB);
+  classesDB = synced.classes;
+  studentsDB = synced.students;
+  teachersDB = synced.teachers;
+
   saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, bkNotes: bkNotesDB, settings: schoolSettingsDB });
   const cfg = loadSupabaseConfig();
   if (cfg.autoSync && cfg.url && cfg.anonKey && cfg.status === 'connected') {
@@ -307,6 +321,11 @@ async function startServer() {
 
   // Get master data
   app.get('/api/master/data', (req, res) => {
+    const synced = syncClassesAndStudentsData(classesDB, studentsDB, teachersDB);
+    classesDB = synced.classes;
+    studentsDB = synced.students;
+    teachersDB = synced.teachers;
+
     res.json({
       classes: classesDB,
       teachers: teachersDB,
@@ -400,6 +419,41 @@ async function startServer() {
     persistData();
     deleteStudentFromSupabase(id, student.nisn).catch(e => console.error('Error deleting student from Supabase:', e));
     res.json({ success: true, message: 'Data siswa berhasil dihapus!' });
+  });
+
+  // Bulk Delete Students
+  app.post('/api/master/students/bulk-delete', (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Daftar ID siswa tidak boleh kosong.' });
+    }
+
+    const idSet = new Set(ids.map(id => String(id)));
+    const targetStudents = studentsDB.filter(s => idSet.has(s.id));
+
+    if (targetStudents.length === 0) {
+      return res.status(404).json({ error: 'Tidak ada siswa yang cocok untuk dihapus.' });
+    }
+
+    studentsDB = studentsDB.filter(s => !idSet.has(s.id));
+
+    // Update class counts
+    classesDB.forEach(c => {
+      c.studentCount = studentsDB.filter(s => s.classId === c.id).length;
+    });
+
+    persistData();
+
+    // Async deletion from Supabase
+    targetStudents.forEach(st => {
+      deleteStudentFromSupabase(st.id, st.nisn).catch(e => console.error('Error deleting student from Supabase:', e));
+    });
+
+    res.json({
+      success: true,
+      count: targetStudents.length,
+      message: `Berhasil menghapus masal ${targetStudents.length} data siswa!`
+    });
   });
 
   // Upload student 3x4 photo (Supabase Storage with Base64 fallback)
@@ -958,52 +1012,73 @@ async function startServer() {
 
     let addedCount = 0;
     let updatedCount = 0;
+    let createdClassesCount = 0;
+    const newlyCreatedClassNames: string[] = [];
 
-    students.forEach(item => {
+    students.forEach((item, itemIdx) => {
       if (!item.nisn || !item.name) return;
 
-      let cls = classesDB.find(c => c.name.toLowerCase() === (item.className || '').toLowerCase() || c.id === item.classId);
-      if (!cls) {
-        // Default to first class if not found
+      const rawClassName = String(item.className || item.class || item.NamaKelas || item['Nama Kelas'] || item['Kelas'] || '').trim();
+      let cls = findMatchingClass(rawClassName, item.classId, classesDB);
+
+      // Auto create class if specified className does not exist yet
+      if (!cls && rawClassName) {
+        const gradeLevel = inferGradeLevel(rawClassName);
+        cls = {
+          id: `cls-${Date.now()}-${itemIdx}-${Math.random().toString(36).substring(2, 7)}`,
+          name: rawClassName,
+          gradeLevel: gradeLevel,
+          studentCount: 0
+        };
+        classesDB.push(cls);
+        createdClassesCount++;
+        newlyCreatedClassNames.push(rawClassName);
+      } else if (!cls && classesDB.length > 0) {
         cls = classesDB[0];
       }
 
-      const existingIndex = studentsDB.findIndex(s => s.nisn === String(item.nisn).trim());
+      const genderCode = (String(item.gender || '').trim().toUpperCase().startsWith('P') || item.gender === 'Perempuan') ? 'P' : 'L';
+      const cleanNisn = String(item.nisn).trim();
+
+      const existingIndex = studentsDB.findIndex(s => s.nisn === cleanNisn);
       if (existingIndex !== -1) {
         studentsDB[existingIndex] = {
           ...studentsDB[existingIndex],
-          name: item.name || studentsDB[existingIndex].name,
-          gender: (item.gender === 'P' || item.gender === 'Perempuan') ? 'P' : 'L',
-          classId: cls.id,
-          className: cls.name,
-          parentName: item.parentName || studentsDB[existingIndex].parentName,
-          parentPhone: item.parentPhone || studentsDB[existingIndex].parentPhone
+          name: String(item.name).trim() || studentsDB[existingIndex].name,
+          gender: genderCode,
+          classId: cls ? cls.id : studentsDB[existingIndex].classId,
+          className: cls ? cls.name : studentsDB[existingIndex].className,
+          parentName: item.parentName ? String(item.parentName).trim() : studentsDB[existingIndex].parentName,
+          parentPhone: item.parentPhone ? String(item.parentPhone).trim() : studentsDB[existingIndex].parentPhone
         };
         updatedCount++;
       } else {
         studentsDB.push({
-          id: `std-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-          nisn: String(item.nisn).trim(),
-          name: item.name.trim(),
-          gender: (item.gender === 'P' || item.gender === 'Perempuan') ? 'P' : 'L',
-          classId: cls.id,
-          className: cls.name,
-          parentName: item.parentName || 'Wali Murid',
-          parentPhone: item.parentPhone || '-',
+          id: `std-${Date.now()}-${itemIdx}-${Math.random().toString(36).substring(2, 7)}`,
+          nisn: cleanNisn,
+          name: String(item.name).trim(),
+          gender: genderCode,
+          classId: cls ? cls.id : 'cls-1',
+          className: cls ? cls.name : 'X MIPA 1',
+          parentName: item.parentName ? String(item.parentName).trim() : 'Wali Murid',
+          parentPhone: item.parentPhone ? String(item.parentPhone).trim() : '-',
           defaultPassword: '123'
         });
         addedCount++;
       }
     });
 
-    // Update class counts
-    classesDB.forEach(c => {
-      c.studentCount = studentsDB.filter(s => s.classId === c.id).length;
-    });
+    // Run full sync & persist data
+    persistData();
+
+    let extraMsg = '';
+    if (createdClassesCount > 0) {
+      extraMsg = ` (${createdClassesCount} kelas baru otomatis dibuat: ${newlyCreatedClassNames.join(', ')})`;
+    }
 
     res.json({
       success: true,
-      message: `Import Berhasil! ${addedCount} data siswa baru ditambahkan, ${updatedCount} data diperbarui.`
+      message: `Import Berhasil! ${addedCount} data siswa baru ditambahkan, ${updatedCount} data diperbarui.${extraMsg}`
     });
   });
 

@@ -61,7 +61,10 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   const currentClass = classes.find(c => c.id === teacherClassId);
 
   // Class students
-  const classStudents = students.filter(s => s.classId === teacherClassId);
+  const classStudents = students.filter(s =>
+    s.classId === teacherClassId ||
+    (currentClass && s.className && s.className.trim().toLowerCase() === currentClass.name.trim().toLowerCase())
+  );
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayRecords = attendanceRecords.filter(a => a.classId === teacherClassId && a.date === todayStr);

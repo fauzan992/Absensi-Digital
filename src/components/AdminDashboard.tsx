@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus } from '../types';
 import { apiService } from '../services/apiService';
 import { exportAttendanceToExcel, downloadStudentTemplate, downloadTeacherTemplate, parseExcelFile } from '../utils/excelHelper';
+import { findMatchingClass } from '../utils/dataSync';
 import { NISNBarcode } from './NISNBarcode';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { GoogleSheetsManager } from './GoogleSheetsManager';
@@ -126,6 +127,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [showClassModal, setShowClassModal] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassRoom | null>(null);
   const [isSavingClass, setIsSavingClass] = useState(false);
+  const [selectedClassForDetail, setSelectedClassForDetail] = useState<ClassRoom | null>(null);
+  const [classDetailSearch, setClassDetailSearch] = useState('');
   const [classForm, setClassForm] = useState({
     name: '',
     gradeLevel: 'X' as 'X' | 'XI' | 'XII',
@@ -148,7 +151,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   // Delete Target Modal State
   const [deleteTarget, setDeleteTarget] = useState<{
-    type: 'siswa' | 'guru' | 'kelas';
+    type: 'siswa' | 'guru' | 'kelas' | 'siswa_masal';
     id: string;
     name: string;
     detail?: string;
@@ -169,6 +172,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           setDeleteTarget(null);
         } else {
           setDeleteError(res.error || 'Gagal menghapus data siswa.');
+        }
+      } else if (deleteTarget.type === 'siswa_masal') {
+        const res = await apiService.deleteStudents(selectedStudentIdsTable);
+        if (res.success) {
+          setSelectedStudentIdsTable([]);
+          onRefreshData();
+          setDeleteTarget(null);
+        } else {
+          setDeleteError(res.error || 'Gagal menghapus data siswa terpilih.');
         }
       } else if (deleteTarget.type === 'guru') {
         const res = await apiService.deleteTeacher(deleteTarget.id);
@@ -214,13 +226,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const matchSearch = s.name.toLowerCase().includes(masterSearch.toLowerCase()) ||
                         s.nisn.includes(masterSearch) ||
                         s.parentName.toLowerCase().includes(masterSearch.toLowerCase());
-    const matchClass = masterClassFilter === 'all' || s.classId === masterClassFilter;
+    const selectedClassObj = classes.find(c => c.id === masterClassFilter);
+    const matchClass = masterClassFilter === 'all' ||
+                       s.classId === masterClassFilter ||
+                       (selectedClassObj && s.className && s.className.trim().toLowerCase() === selectedClassObj.name.trim().toLowerCase());
     return matchSearch && matchClass;
   });
 
   // Filtered Reports
   const filteredReports = attendanceRecords.filter(rec => {
-    const matchClass = reportClassFilter === 'all' || rec.classId === reportClassFilter;
+    const selectedClassObj = classes.find(c => c.id === reportClassFilter);
+    const matchClass = reportClassFilter === 'all' ||
+                       rec.classId === reportClassFilter ||
+                       (selectedClassObj && rec.className && rec.className.trim().toLowerCase() === selectedClassObj.name.trim().toLowerCase());
     const matchStatus = reportStatusFilter === 'all' || rec.status === reportStatusFilter;
     const matchStart = !reportStartDate || rec.date >= reportStartDate;
     const matchEnd = !reportEndDate || rec.date <= reportEndDate;
@@ -245,7 +263,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         }
       }
 
-      const payload = { ...studentForm, photoUrl: finalPhotoUrl };
+      const selectedClassObj = classes.find(c => c.id === studentForm.classId);
+      const payload = {
+        ...studentForm,
+        className: selectedClassObj?.name || '',
+        photoUrl: finalPhotoUrl
+      };
 
       if (editingStudent) {
         const res = await apiService.updateStudent(editingStudent.id, payload);
@@ -451,19 +474,44 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  // Helper to flexibly extract column values regardless of column casing or naming variations
+  const getRowValue = (row: Record<string, any>, possibleKeys: string[]): string => {
+    if (!row) return '';
+    const keys = Object.keys(row);
+    for (const targetKey of possibleKeys) {
+      if (row[targetKey] !== undefined && row[targetKey] !== null && String(row[targetKey]).trim() !== '') {
+        return String(row[targetKey]).trim();
+      }
+      const foundKey = keys.find(k => k.trim().toLowerCase() === targetKey.toLowerCase());
+      if (foundKey && row[foundKey] !== undefined && row[foundKey] !== null && String(row[foundKey]).trim() !== '') {
+        return String(row[foundKey]).trim();
+      }
+    }
+    return '';
+  };
+
   const handleExecuteImport = async () => {
     if (importPreviewData.length === 0) return;
     setImportLoading(true);
 
     if (importType === 'siswa') {
-      const formatted = importPreviewData.map(row => ({
-        nisn: row['NISN'] || row['nisn'],
-        name: row['Nama Siswa'] || row['Nama'] || row['name'],
-        gender: row['Jenis Kelamin (L/P)'] || row['Jenis Kelamin'] || row['gender'],
-        className: row['Nama Kelas'] || row['Kelas'] || row['className'],
-        parentName: row['Nama Wali Murid'] || row['Nama Wali'] || row['parentName'],
-        parentPhone: row['No HP Wali'] || row['parentPhone']
-      }));
+      const formatted = importPreviewData.map(row => {
+        const nisnVal = getRowValue(row, ['NISN', 'nisn', 'Nis', 'NIS', 'No Induk']);
+        const nameVal = getRowValue(row, ['Nama Siswa', 'Nama', 'name', 'Nama Lengkap', 'Siswa', 'Nama_Siswa']);
+        const genderVal = getRowValue(row, ['Jenis Kelamin (L/P)', 'Jenis Kelamin', 'JK', 'L/P', 'Gender', 'gender']);
+        const classVal = getRowValue(row, ['Nama Kelas', 'Kelas', 'Rombel', 'Class', 'className', 'Nama_Kelas', 'nama_kelas', 'Rombongan Belajar']);
+        const parentNameVal = getRowValue(row, ['Nama Wali Murid', 'Nama Wali', 'Wali', 'Nama Orang Tua', 'parentName', 'Wali Murid']);
+        const parentPhoneVal = getRowValue(row, ['No HP Wali', 'No HP', 'No. HP', 'HP Wali', 'No WhatsApp', 'parentPhone', 'Telepon']);
+
+        return {
+          nisn: nisnVal,
+          name: nameVal,
+          gender: genderVal.toUpperCase().startsWith('P') ? 'P' : 'L',
+          className: classVal,
+          parentName: parentNameVal || 'Wali Murid',
+          parentPhone: parentPhoneVal || '-'
+        };
+      });
 
       const res = await apiService.importStudents(formatted);
       setImportLoading(false);
@@ -475,13 +523,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setImportMessage({ type: 'error', text: res.error || 'Gagal import data.' });
       }
     } else {
-      const formatted = importPreviewData.map(row => ({
-        nip: row['NIP'] || row['nip'],
-        name: row['Nama Guru'] || row['Nama'] || row['name'],
-        gender: row['Jenis Kelamin (L/P)'] || row['gender'],
-        username: row['Username Login'] || row['username'],
-        subject: row['Mata Pelajaran'] || row['subject']
-      }));
+      const formatted = importPreviewData.map(row => {
+        const nipVal = getRowValue(row, ['NIP', 'nip', 'Nip', 'No NIP']);
+        const nameVal = getRowValue(row, ['Nama Guru', 'Nama', 'name', 'Nama Lengkap', 'Guru']);
+        const genderVal = getRowValue(row, ['Jenis Kelamin (L/P)', 'Jenis Kelamin', 'gender']);
+        const usernameVal = getRowValue(row, ['Username Login', 'Username', 'username', 'User']);
+        const subjectVal = getRowValue(row, ['Mata Pelajaran', 'Mapel', 'subject', 'Pelajaran']);
+
+        return {
+          nip: nipVal,
+          name: nameVal,
+          gender: genderVal.toUpperCase().startsWith('P') ? 'P' : 'L',
+          username: usernameVal || nipVal || nameVal.toLowerCase().replace(/\s+/g, ''),
+          subject: subjectVal || 'Pengajar'
+        };
+      });
 
       const res = await apiService.importTeachers(formatted);
       setImportLoading(false);
@@ -729,14 +785,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       </select>
                     </div>
 
-                    {selectedStudentIdsTable.length > 0 && (
-                      <button
-                        onClick={() => setShowBulkPrintModal(true)}
-                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
-                      >
-                        <Printer className="w-4 h-4" /> Cetak ({selectedStudentIdsTable.length}) Kartu Terpilih
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {filteredStudents.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedStudentIdsTable.length === filteredStudents.length) {
+                              setSelectedStudentIdsTable([]);
+                            } else {
+                              setSelectedStudentIdsTable(filteredStudents.map(s => s.id));
+                            }
+                          }}
+                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-300 cursor-pointer"
+                        >
+                          {selectedStudentIdsTable.length === filteredStudents.length ? 'Batal Pilih Semua' : `Pilih Semua (${filteredStudents.length})`}
+                        </button>
+                      )}
+
+                      {selectedStudentIdsTable.length > 0 && (
+                        <>
+                          <button
+                            onClick={() => setShowBulkPrintModal(true)}
+                            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
+                          >
+                            <Printer className="w-4 h-4" /> Cetak ({selectedStudentIdsTable.length}) Kartu
+                          </button>
+                          <button
+                            onClick={() => {
+                              setDeleteError(null);
+                              setDeleteTarget({
+                                type: 'siswa_masal',
+                                id: 'bulk-students',
+                                name: `Hapus Masal ${selectedStudentIdsTable.length} Data Siswa Terpilih`,
+                                detail: `Konfirmasi penghapusan ${selectedStudentIdsTable.length} siswa secara permanen.`
+                              });
+                            }}
+                            className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
+                          >
+                            <Trash2 className="w-4 h-4" /> Hapus ({selectedStudentIdsTable.length}) Siswa
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="overflow-x-auto border border-slate-200 rounded-2xl">
@@ -771,7 +861,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         {filteredStudents.map((st, idx) => {
                           const isRowSelected = selectedStudentIdsTable.includes(st.id);
                           return (
-                            <tr key={st.id} className={`hover:bg-slate-50/80 transition-colors ${isRowSelected ? 'bg-emerald-50/50' : ''}`}>
+                            <tr key={`${st.id}-${idx}`} className={`hover:bg-slate-50/80 transition-colors ${isRowSelected ? 'bg-emerald-50/50' : ''}`}>
                               <td className="p-3">
                                 <input
                                   type="checkbox"
@@ -939,9 +1029,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             <span className="text-xs font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-lg border border-emerald-200">
                               Tingkat {c.gradeLevel}
                             </span>
-                            <span className="text-xs text-slate-500 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedClassForDetail(c); setClassDetailSearch(''); }}
+                              className="text-xs text-emerald-800 hover:text-emerald-900 font-extrabold bg-emerald-50 hover:bg-emerald-100 px-2.5 py-0.5 rounded-md border border-emerald-200 transition-colors cursor-pointer flex items-center gap-1"
+                              title="Klik untuk melihat daftar siswa di kelas ini"
+                            >
+                              <Users className="w-3.5 h-3.5 text-emerald-600" />
                               {c.studentCount} Siswa
-                            </span>
+                            </button>
                           </div>
                           <h4 className="font-extrabold text-slate-900 text-lg group-hover:text-emerald-800 transition-colors">
                             {c.name}
@@ -951,21 +1047,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </p>
                         </div>
 
-                        <div className="pt-3 border-t border-slate-200/80 flex justify-end gap-2">
+                        <div className="pt-3 border-t border-slate-200/80 flex items-center justify-between gap-2">
                           <button
-                            onClick={() => handleOpenEditClass(c)}
-                            className="px-2.5 py-1.5 bg-white hover:bg-blue-50 text-blue-600 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                            title="Edit Data Kelas"
+                            onClick={() => { setSelectedClassForDetail(c); setClassDetailSearch(''); }}
+                            className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                            title="Lihat Daftar Siswa Terkoneksi"
                           >
-                            <Edit className="w-3.5 h-3.5" /> Edit
+                            <Users className="w-3.5 h-3.5 text-emerald-600" /> Siswa ({c.studentCount})
                           </button>
-                          <button
-                            onClick={() => handleDeleteClass(c)}
-                            className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
-                            title="Hapus Kelas"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Hapus
-                          </button>
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditClass(c)}
+                              className="px-2.5 py-1.5 bg-white hover:bg-blue-50 text-blue-600 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                              title="Edit Data Kelas"
+                            >
+                              <Edit className="w-3.5 h-3.5" /> Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClass(c)}
+                              className="px-2.5 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-slate-200 rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                              title="Hapus Kelas"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> Hapus
+                            </button>
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1401,20 +1506,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-xl">
                     <table className="w-full text-left text-xs text-slate-700">
                       <thead className="bg-slate-100 font-bold sticky top-0">
-                        <tr>
-                          {Object.keys(importPreviewData[0] || {}).map((col, idx) => (
-                            <th key={idx} className="p-2 border-b border-slate-200">{col}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {importPreviewData.map((row, idx) => (
-                          <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
-                            {Object.values(row).map((val: any, vIdx) => (
-                              <td key={vIdx} className="p-2">{String(val)}</td>
+                        {importType === 'siswa' ? (
+                          <tr>
+                            <th className="p-2.5 border-b border-slate-200">No</th>
+                            <th className="p-2.5 border-b border-slate-200">NISN</th>
+                            <th className="p-2.5 border-b border-slate-200">Nama Siswa</th>
+                            <th className="p-2.5 border-b border-slate-200">L/P</th>
+                            <th className="p-2.5 border-b border-slate-200">Kelas di File</th>
+                            <th className="p-2.5 border-b border-slate-200">Koneksi Kelas Sistem</th>
+                            <th className="p-2.5 border-b border-slate-200">Wali Murid</th>
+                          </tr>
+                        ) : (
+                          <tr>
+                            {Object.keys(importPreviewData[0] || {}).map((col, idx) => (
+                              <th key={idx} className="p-2.5 border-b border-slate-200">{col}</th>
                             ))}
                           </tr>
-                        ))}
+                        )}
+                      </thead>
+                      <tbody>
+                        {importType === 'siswa' ? (
+                          importPreviewData.map((row, idx) => {
+                            const rawClassName = getRowValue(row, ['Nama Kelas', 'Kelas', 'Rombel', 'Class', 'className', 'Nama_Kelas', 'nama_kelas']);
+                            const matched = findMatchingClass(rawClassName, undefined, classes);
+                            const studentName = getRowValue(row, ['Nama Siswa', 'Nama', 'name', 'Nama Lengkap', 'Siswa']);
+                            const nisnVal = getRowValue(row, ['NISN', 'nisn', 'Nis', 'NIS']);
+                            const genderVal = getRowValue(row, ['Jenis Kelamin (L/P)', 'Jenis Kelamin', 'JK', 'L/P', 'gender']);
+                            const parentName = getRowValue(row, ['Nama Wali Murid', 'Nama Wali', 'Wali', 'parentName']);
+
+                            return (
+                              <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                                <td className="p-2.5 font-bold text-slate-400">{idx + 1}</td>
+                                <td className="p-2.5 font-mono font-bold text-slate-800">{nisnVal || '-'}</td>
+                                <td className="p-2.5 font-bold text-emerald-900">{studentName || '-'}</td>
+                                <td className="p-2.5 font-bold">{genderVal.toUpperCase().startsWith('P') ? 'P' : 'L'}</td>
+                                <td className="p-2.5 font-semibold text-slate-700">{rawClassName || '(Tanpa Kelas)'}</td>
+                                <td className="p-2.5">
+                                  {matched ? (
+                                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-md font-extrabold text-[10px] inline-flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                      Terkoneksi: {matched.name}
+                                    </span>
+                                  ) : rawClassName ? (
+                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-md font-extrabold text-[10px] inline-flex items-center gap-1" title="Kelas ini belum ada dan akan dibuat otomatis saat diklik Simpan">
+                                      <Plus className="w-3 h-3 text-amber-600" />
+                                      Akan Dibuat Kelas: {rawClassName}
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 border border-slate-300 rounded-md font-bold text-[10px]">
+                                      Kelas Default ({classes[0]?.name || 'X MIPA 1'})
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-2.5 text-slate-600">{parentName || '-'}</td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          importPreviewData.map((row, idx) => (
+                            <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                              {Object.values(row).map((val: any, vIdx) => (
+                                <td key={vIdx} className="p-2">{String(val)}</td>
+                              ))}
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1969,6 +2125,158 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           initialSelectedIds={selectedStudentIdsTable.length > 0 ? selectedStudentIdsTable : undefined}
           onClose={() => setShowBulkPrintModal(false)}
         />
+      )}
+
+      {/* Class Connected Students Detail Modal */}
+      {selectedClassForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-200 bg-slate-900 text-white flex justify-between items-center">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-lg text-white">
+                    Daftar Siswa Kelas {selectedClassForDetail.name}
+                  </h3>
+                  <span className="text-xs font-bold px-2.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg">
+                    Tingkat {selectedClassForDetail.gradeLevel}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Wali Kelas: <strong className="text-amber-300">{selectedClassForDetail.teacherName || 'Belum ditugaskan'}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedClassForDetail(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+              {/* Filter & Summary */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari nama, NISN, atau wali murid..."
+                    value={classDetailSearch}
+                    onChange={(e) => setClassDetailSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 border border-slate-300 rounded-xl text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-extrabold border border-emerald-200">
+                    Total: {
+                      students.filter(s => s.classId === selectedClassForDetail.id || (s.className && s.className.trim().toLowerCase() === selectedClassForDetail.name.trim().toLowerCase())).length
+                    } Siswa Terkoneksi
+                  </span>
+                </div>
+              </div>
+
+              {/* Table of Students in Class */}
+              <div className="overflow-x-auto border border-slate-200 rounded-2xl">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-100 font-bold uppercase text-[10px] text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">No</th>
+                      <th className="p-3">Foto</th>
+                      <th className="p-3">NISN</th>
+                      <th className="p-3">Nama Siswa</th>
+                      <th className="p-3">L/P</th>
+                      <th className="p-3">Nama Wali</th>
+                      <th className="p-3">No HP Wali</th>
+                      <th className="p-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {(() => {
+                      const classStudents = students.filter(s => {
+                        const matchClass = s.classId === selectedClassForDetail.id ||
+                                           (s.className && s.className.trim().toLowerCase() === selectedClassForDetail.name.trim().toLowerCase());
+                        const matchSearch = !classDetailSearch ||
+                          s.name.toLowerCase().includes(classDetailSearch.toLowerCase()) ||
+                          s.nisn.includes(classDetailSearch) ||
+                          s.parentName.toLowerCase().includes(classDetailSearch.toLowerCase());
+                        return matchClass && matchSearch;
+                      });
+
+                      if (classStudents.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={8} className="p-8 text-center text-xs text-slate-400">
+                              Belum ada data siswa yang terhubung dengan kelas {selectedClassForDetail.name}.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return classStudents.map((st, idx) => (
+                        <tr key={`${st.id}-${idx}`} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 font-semibold text-slate-400">{idx + 1}</td>
+                          <td className="p-3">
+                            {st.photoUrl ? (
+                              <img src={st.photoUrl} alt={st.name} className="w-7 h-9 object-cover rounded border border-slate-200" />
+                            ) : (
+                              <div className="w-7 h-9 bg-slate-100 border border-slate-200 rounded flex items-center justify-center text-slate-400">
+                                <Users className="w-3.5 h-3.5" />
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 font-mono font-bold text-emerald-800">{st.nisn}</td>
+                          <td className="p-3 font-extrabold text-slate-900">{st.name}</td>
+                          <td className="p-3">{st.gender}</td>
+                          <td className="p-3 font-medium text-slate-800">{st.parentName}</td>
+                          <td className="p-3 font-mono text-slate-600">{st.parentPhone}</td>
+                          <td className="p-3 text-right space-x-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleOpenEditStudent(st);
+                                setSelectedClassForDetail(null);
+                              }}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer"
+                              title="Edit Siswa Ini"
+                            >
+                              <Edit className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  setMasterSubTab('students');
+                  setMasterClassFilter(selectedClassForDetail.id);
+                  setSelectedClassForDetail(null);
+                }}
+                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Users className="w-4 h-4" /> Buka di Tab Master Data Siswa
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedClassForDetail(null)}
+                className="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

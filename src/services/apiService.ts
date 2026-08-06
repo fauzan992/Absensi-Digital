@@ -1,6 +1,7 @@
 import { User, Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus, UserRole, SchoolSettings, BKNote } from '../types';
 import { INITIAL_CLASSES, INITIAL_TEACHERS, INITIAL_STUDENTS, generateInitialAttendance, INITIAL_BK_NOTES } from '../data/mockDatabase';
 import { getStoredSupabaseConfig, pushAllFromBrowser, getBrowserSupabaseClient, deleteTeacherFromBrowserSupabase, deleteClassFromBrowserSupabase, deleteStudentFromBrowserSupabase } from './clientSupabase';
+import { syncClassesAndStudentsData } from '../utils/dataSync';
 
 // Safe JSON fetch wrapper that checks Content-Type to prevent HTML "Unexpected token T" errors on Vercel
 async function safeFetchJson<T = any>(url: string, options?: RequestInit): Promise<{ ok: boolean; status: number; data?: T; isHtml?: boolean; error?: string }> {
@@ -301,14 +302,15 @@ export const apiService = {
   async getMasterData(): Promise<{ classes: ClassRoom[]; teachers: Teacher[]; students: Student[] }> {
     const res = await safeFetchJson<{ classes: ClassRoom[]; teachers: Teacher[]; students: Student[] }>('/api/master/data');
     if (res.ok && res.data) {
-      return res.data;
+      const synced = syncClassesAndStudentsData(res.data.classes || [], res.data.students || [], res.data.teachers || []);
+      return synced;
     }
 
-    return {
-      classes: getLocalClasses(),
-      teachers: getLocalTeachers(),
-      students: getLocalStudents()
-    };
+    const localSynced = syncClassesAndStudentsData(getLocalClasses(), getLocalStudents(), getLocalTeachers());
+    saveLocalClasses(localSynced.classes);
+    saveLocalStudents(localSynced.students);
+    saveLocalTeachers(localSynced.teachers);
+    return localSynced;
   },
 
   async addStudent(studentData: Partial<Student>): Promise<{ success: boolean; student?: Student; error?: string; message?: string }> {
@@ -380,6 +382,56 @@ export const apiService = {
 
     deleteStudentFromBrowserSupabase(id, targetStudent?.nisn);
     return { success: true, message: 'Data siswa berhasil dihapus.' };
+  },
+
+  async deleteStudents(ids: string[]): Promise<{ success: boolean; count?: number; error?: string; message?: string }> {
+    if (!ids || ids.length === 0) {
+      return { success: false, error: 'Pilih minimal satu siswa untuk dihapus.' };
+    }
+
+    const res = await safeFetchJson<{ count?: number; message?: string }>('/api/master/students/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    });
+
+    if (res.ok && res.data) {
+      let students = getLocalStudents();
+      const idSet = new Set(ids);
+      const deletedList = students.filter(s => idSet.has(s.id));
+      students = students.filter(s => !idSet.has(s.id));
+      saveLocalStudents(students);
+
+      deletedList.forEach(st => {
+        deleteStudentFromBrowserSupabase(st.id, st.nisn);
+      });
+
+      return {
+        success: true,
+        count: res.data.count || deletedList.length,
+        message: res.data.message || `Berhasil menghapus masal ${res.data.count || deletedList.length} data siswa.`
+      };
+    }
+
+    if (res.error && !res.isHtml) {
+      return { success: false, error: res.error };
+    }
+
+    let students = getLocalStudents();
+    const idSet = new Set(ids);
+    const deletedList = students.filter(s => idSet.has(s.id));
+    students = students.filter(s => !idSet.has(s.id));
+    saveLocalStudents(students);
+
+    deletedList.forEach(st => {
+      deleteStudentFromBrowserSupabase(st.id, st.nisn);
+    });
+
+    return {
+      success: true,
+      count: deletedList.length,
+      message: `Berhasil menghapus masal ${deletedList.length} data siswa secara lokal.`
+    };
   },
 
   async uploadStudentPhoto(base64Data: string, nisn: string): Promise<{ success: boolean; photoUrl?: string; isSupabase?: boolean; error?: string; message?: string }> {
@@ -842,26 +894,35 @@ export const apiService = {
     }
 
     const existingStudents = getLocalStudents();
-    for (const s of studentsInput) {
-      const idx = existingStudents.findIndex(e => e.nisn === s.nisn || e.id === s.id);
+    const existingClasses = getLocalClasses();
+    const existingTeachers = getLocalTeachers();
+
+    for (let sIdx = 0; sIdx < studentsInput.length; sIdx++) {
+      const s = studentsInput[sIdx];
+      const idx = existingStudents.findIndex(e => (s.nisn && e.nisn === s.nisn) || (s.id && e.id === s.id));
       if (idx !== -1) {
         existingStudents[idx] = { ...existingStudents[idx], ...s };
       } else {
         existingStudents.push({
-          id: s.id || `std-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          id: s.id || `std-${Date.now()}-${sIdx}-${Math.random().toString(36).substring(2, 7)}`,
           nisn: s.nisn,
           name: s.name,
           gender: s.gender || 'L',
-          classId: s.classId || 'cls-1',
-          className: s.className || 'X MIPA 1',
-          parentName: s.parentName,
-          parentPhone: s.parentPhone,
+          classId: s.classId || '',
+          className: s.className || '',
+          parentName: s.parentName || 'Wali Murid',
+          parentPhone: s.parentPhone || '-',
           defaultPassword: s.defaultPassword || '123'
         });
       }
     }
 
-    saveLocalStudents(existingStudents);
+    // Bidirectionally sync classes and auto-create missing class if needed
+    const synced = syncClassesAndStudentsData(existingClasses, existingStudents, existingTeachers);
+    saveLocalClasses(synced.classes);
+    saveLocalStudents(synced.students);
+    saveLocalTeachers(synced.teachers);
+
     triggerAutoSupabaseSync();
 
     return { success: true, message: `Berhasil mengimpor ${studentsInput.length} data siswa.` };

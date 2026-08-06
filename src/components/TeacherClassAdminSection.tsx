@@ -146,8 +146,11 @@ export const TeacherClassAdminSection: React.FC<TeacherClassAdminSectionProps> =
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Roster Status map for each student in current class
-  const classStudents = students.filter(s => s.classId === selectedClassId);
   const currentClassObj = classes.find(c => c.id === selectedClassId);
+  const classStudents = students.filter(s =>
+    s.classId === selectedClassId ||
+    (currentClassObj && s.className && s.className.trim().toLowerCase() === currentClassObj.name.trim().toLowerCase())
+  );
 
   // Today existing records for this class
   const classRecordsToday = attendanceRecords.filter(a => a.classId === selectedClassId && a.date === kbmDate);
@@ -636,7 +639,7 @@ export const TeacherClassAdminSection: React.FC<TeacherClassAdminSectionProps> =
 
                   return (
                     <tr
-                      key={st.id}
+                      key={`${st.id}-${index}`}
                       className={`hover:bg-slate-50 transition-colors ${
                         isProblematic ? 'bg-amber-50/30' : ''
                       }`}

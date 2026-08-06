@@ -296,11 +296,11 @@ export const BulkStudentCardPrinter: React.FC<BulkStudentCardPrinterProps> = ({
               {filteredStudents.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-400">Tidak ada siswa ditemukan</div>
               ) : (
-                filteredStudents.map(st => {
+                filteredStudents.map((st, idx) => {
                   const isSelected = selectedStudentIds.includes(st.id);
                   return (
                     <div
-                      key={st.id}
+                      key={`list-st-${st.id}-${idx}`}
                       onClick={() => handleToggleStudent(st.id)}
                       className={`p-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-all border ${
                         isSelected
@@ -357,9 +357,9 @@ export const BulkStudentCardPrinter: React.FC<BulkStudentCardPrinterProps> = ({
               /* Printable Cards Container */
               <div id="printable-card-area">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {selectedStudents.map((student) => (
+                  {selectedStudents.map((student, idx) => (
                     <div
-                      key={student.id}
+                      key={`card-${student.id}-${idx}`}
                       className={`relative bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-950 text-white rounded-2xl p-4 shadow-md overflow-hidden border ${
                         showCutLines ? 'border-dashed border-slate-400' : 'border-emerald-700/50'
                       } flex flex-col justify-between`}
