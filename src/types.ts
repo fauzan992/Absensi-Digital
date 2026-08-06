@@ -34,6 +34,7 @@ export interface Teacher {
   name: string;
   gender: 'L' | 'P';
   username: string;
+  password?: string;
   subject: string;
   assignedClassId?: string;
   assignedClassName?: string;

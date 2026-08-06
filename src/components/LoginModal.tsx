@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { User } from '../types';
+import React, { useState, useEffect } from 'react';
+import { User, SchoolSettings } from '../types';
 import { apiService } from '../services/apiService';
 import { Shield, GraduationCap, Heart, Key, Lock, UserCheck, AlertCircle, Sparkles, Users } from 'lucide-react';
 import { SchoolLogo } from './SchoolLogo';
@@ -16,6 +16,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('admin123');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [settings, setSettings] = useState<SchoolSettings | null>(null);
+
+  useEffect(() => {
+    apiService.getSettings().then(res => {
+      if (res.success && res.settings) {
+        setSettings(res.settings);
+      }
+    });
+
+    const handleSettingsEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<SchoolSettings>;
+      if (customEvent.detail) {
+        setSettings(customEvent.detail);
+      }
+    };
+
+    window.addEventListener('school-settings-updated', handleSettingsEvent);
+    return () => {
+      window.removeEventListener('school-settings-updated', handleSettingsEvent);
+    };
+  }, []);
 
   const handleFormTypeChange = (type: 'staff' | 'wali') => {
     setFormType(type);
@@ -68,7 +89,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
             <SchoolLogo size={64} />
           </div>
           <h2 className="font-extrabold text-lg tracking-wide uppercase text-amber-300">
-            SMA ISLAM RA'IYATUL HUSNAN
+            {settings?.namaSekolah || "SMA ISLAM RA'IYATUL HUSNAN"}
           </h2>
           <p className="text-xs text-emerald-100/90 mt-1">Aplikasi Presensi Barcode Digital NISN</p>
         </div>

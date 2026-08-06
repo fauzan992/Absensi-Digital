@@ -11,15 +11,7 @@ import { BKDashboard } from './components/BKDashboard';
 import { Shield, GraduationCap, Heart, Barcode, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(() => {
-    // Default initial session as Admin for immediate preview!
-    return {
-      id: 'admin-1',
-      username: 'admin',
-      name: 'Administrator Utama',
-      role: 'admin'
-    };
-  });
+  const [user, setUser] = useState<User | null>(null);
 
   const [students, setStudents] = useState<Student[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -30,8 +22,15 @@ export default function App() {
 
   // Left Sidebar State & Tab Controls
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings'>('dashboard');
   const [masterSubTab, setMasterSubTab] = useState<'students' | 'teachers' | 'classes' | 'guardians'>('students');
+
+  // Guard activeTab based on user role when user changes
+  useEffect(() => {
+    if (user?.role === 'guru' && activeTab === 'bk') {
+      setActiveTab('teacherAdmin');
+    }
+  }, [user, activeTab]);
 
   // Fetch application state
   const loadAppData = async () => {
@@ -47,6 +46,9 @@ export default function App() {
 
       const bkRes = await apiService.getBKNotes();
       setBkNotes(bkRes.notes || []);
+
+      // Initialize school settings & dynamic favicon on app load
+      await apiService.getSettings();
     } catch (err) {
       console.error('Failed loading app data', err);
     } finally {
@@ -89,7 +91,7 @@ export default function App() {
   };
 
   const handleSidebarTabSelect = (
-    tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings',
+    tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings',
     subTab?: 'students' | 'teachers' | 'classes' | 'guardians'
   ) => {
     setActiveTab(tab);
@@ -152,6 +154,7 @@ export default function App() {
                 <GuruDashboard
                   user={user}
                   students={students}
+                  teachers={teachers}
                   classes={classes}
                   attendanceRecords={attendanceRecords}
                   bkNotes={bkNotes}

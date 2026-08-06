@@ -35,6 +35,18 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({
         }
       });
     }
+
+    const handleSettingsEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<SchoolSettings>;
+      if (customEvent.detail) {
+        setSettings(customEvent.detail);
+      }
+    };
+
+    window.addEventListener('school-settings-updated', handleSettingsEvent);
+    return () => {
+      window.removeEventListener('school-settings-updated', handleSettingsEvent);
+    };
   }, [schoolSettings]);
 
   const currentDateStr = new Date().toLocaleDateString('id-ID', {

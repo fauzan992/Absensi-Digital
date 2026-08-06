@@ -259,6 +259,7 @@ export async function pullAllFromBrowser(url: string, anonKey: string): Promise<
 
     const attendance: AttendanceRecord[] = (rawAtt || []).map((a: any) => ({
       id: a.id,
+      studentId: a.student_id || a.nisn,
       nisn: a.nisn,
       studentName: a.student_name,
       classId: a.class_id,

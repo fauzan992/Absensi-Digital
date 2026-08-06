@@ -13,6 +13,7 @@ import { MonthlyAttendanceReport } from './MonthlyAttendanceReport';
 import { MainDashboardOverview } from './MainDashboardOverview';
 import { DisciplineAnalysis } from './DisciplineAnalysis';
 import { BKCounselingSection } from './BKCounselingSection';
+import { TeacherClassAdminSection } from './TeacherClassAdminSection';
 import { BKNote } from '../types';
 import {
   Users, UserCheck, GraduationCap, School, Barcode, FileSpreadsheet,
@@ -28,9 +29,9 @@ interface AdminDashboardProps {
   attendanceRecords: AttendanceRecord[];
   bkNotes?: BKNote[];
   onRefreshData: () => void;
-  externalActiveTab?: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings';
+  externalActiveTab?: 'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings';
   externalMasterSubTab?: 'students' | 'teachers' | 'classes' | 'guardians';
-  onTabChange?: (tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings', subTab?: 'students' | 'teachers' | 'classes' | 'guardians') => void;
+  onTabChange?: (tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings', subTab?: 'students' | 'teachers' | 'classes' | 'guardians') => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -44,18 +45,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   externalMasterSubTab,
   onTabChange
 }) => {
-  const [activeTab, setActiveTabState] = useState<'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings'>('dashboard');
+  const [activeTab, setActiveTabState] = useState<'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings'>('dashboard');
   const [masterSubTab, setMasterSubTabState] = useState<'students' | 'teachers' | 'classes' | 'guardians'>('students');
 
   React.useEffect(() => {
-    if (externalActiveTab) setActiveTabState(externalActiveTab);
+    if (externalActiveTab) setActiveTabState(externalActiveTab as any);
   }, [externalActiveTab]);
 
   React.useEffect(() => {
     if (externalMasterSubTab) setMasterSubTabState(externalMasterSubTab);
   }, [externalMasterSubTab]);
 
-  const setActiveTab = (tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings') => {
+  const setActiveTab = (tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings') => {
     setActiveTabState(tab);
     if (onTabChange) onTabChange(tab);
   };
@@ -139,6 +140,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     name: '',
     gender: 'L' as 'L' | 'P',
     username: '',
+    password: '',
     subject: '',
     assignedClassId: '',
     role: 'guru' as 'admin' | 'guru' | 'bk'
@@ -339,6 +341,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       name: t.name,
       gender: t.gender,
       username: t.username,
+      password: t.password || '',
       subject: t.subject,
       assignedClassId: t.assignedClassId || '',
       role: t.role || (t.subject.toLowerCase().includes('bk') ? 'bk' : 'guru')
@@ -353,6 +356,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       name: '',
       gender: 'L',
       username: '',
+      password: '',
       subject: '',
       assignedClassId: '',
       role: 'guru'
@@ -850,6 +854,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <th className="p-3">Mata Pelajaran</th>
                         <th className="p-3">Role Akses</th>
                         <th className="p-3">Username Login</th>
+                        <th className="p-3">Password Akses</th>
                         <th className="p-3">Wali Kelas</th>
                         <th className="p-3 text-right">Aksi</th>
                       </tr>
@@ -877,6 +882,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             )}
                           </td>
                           <td className="p-3 font-mono text-emerald-700">{t.username}</td>
+                          <td className="p-3 font-mono">
+                            {t.password ? (
+                              <span className="px-2 py-0.5 text-[11px] font-extrabold text-amber-800 bg-amber-50 rounded border border-amber-200 inline-flex items-center gap-1">
+                                <Key className="w-3 h-3 text-amber-600" />
+                                {t.password}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 italic">
+                                Default (guru123)
+                              </span>
+                            )}
+                          </td>
                           <td className="p-3 font-semibold text-slate-700">{t.assignedClassName || '-'}</td>
                           <td className="p-3 text-right space-x-1">
                             <button
@@ -1419,6 +1436,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             />
           )}
 
+          {/* TAB 4.8: ADMINISTRASI KELAS & KBM (KHUSUS GURU & ADMIN) */}
+          {activeTab === 'teacherAdmin' && (
+            <TeacherClassAdminSection
+              user={{ id: 'admin-1', username: 'admin', name: 'Administrator Utama', role: 'admin' }}
+              students={students}
+              teachers={teachers}
+              classes={classes}
+              attendanceRecords={attendanceRecords}
+              onRefreshData={onRefreshData}
+            />
+          )}
+
           {/* TAB 5: PENGATURAN JAM ABSENSI & HARI LIBUR */}
           {activeTab === 'settings' && (
             <AttendanceSettingsSection onSettingsUpdated={onRefreshData} />
@@ -1760,15 +1789,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Mata Pelajaran</label>
+                  <label className="block font-bold text-slate-700 mb-1">Password Akses Role</label>
                   <input
                     type="text"
-                    value={teacherForm.subject}
-                    onChange={(e) => setTeacherForm({ ...teacherForm, subject: e.target.value })}
-                    placeholder="Matematika"
-                    className="w-full p-2 border border-slate-300 rounded-lg"
+                    value={teacherForm.password}
+                    onChange={(e) => setTeacherForm({ ...teacherForm, password: e.target.value })}
+                    placeholder="Contoh: guru123"
+                    className="w-full p-2 border border-slate-300 rounded-lg font-mono font-bold text-amber-900 bg-amber-50/50"
                   />
                 </div>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Password khusus untuk login akun ini. Jika dikosongkan, guru dapat login dengan password default (<code>guru123</code> / NIP).
+              </p>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Mata Pelajaran</label>
+                <input
+                  type="text"
+                  value={teacherForm.subject}
+                  onChange={(e) => setTeacherForm({ ...teacherForm, subject: e.target.value })}
+                  placeholder="Matematika"
+                  className="w-full p-2 border border-slate-300 rounded-lg"
+                />
               </div>
 
               <div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Student, AttendanceRecord, AttendanceStatus, ClassRoom } from '../types';
+import { User, Student, Teacher, AttendanceRecord, AttendanceStatus, ClassRoom } from '../types';
 import { apiService } from '../services/apiService';
 import { exportAttendanceToExcel } from '../utils/excelHelper';
 import { BarcodeScannerModal } from './BarcodeScannerModal';
@@ -7,27 +7,29 @@ import { NISNBarcode } from './NISNBarcode';
 import { DismissalAttendanceSection } from './DismissalAttendanceSection';
 import { MonthlyAttendanceReport } from './MonthlyAttendanceReport';
 import { MainDashboardOverview } from './MainDashboardOverview';
-import { BKCounselingSection } from './BKCounselingSection';
+import { TeacherClassAdminSection } from './TeacherClassAdminSection';
 import { BKNote } from '../types';
 import {
   UserCheck, Barcode, Calendar, FileSpreadsheet, CheckCircle2,
-  XCircle, Clock, AlertTriangle, ArrowDownToLine, Search, Save, Check, RefreshCw, DoorOpen, Heart
+  XCircle, Clock, AlertTriangle, ArrowDownToLine, Search, Save, Check, RefreshCw, DoorOpen, Heart, BookOpen
 } from 'lucide-react';
 
 interface GuruDashboardProps {
   user: User;
   students: Student[];
+  teachers?: Teacher[];
   classes: ClassRoom[];
   attendanceRecords: AttendanceRecord[];
   bkNotes?: BKNote[];
   onRefreshData: () => void;
   externalActiveTab?: string;
-  onTabChange?: (tab: 'dashboard' | 'master' | 'bk' | 'scan' | 'reports' | 'import' | 'settings') => void;
+  onTabChange?: (tab: 'dashboard' | 'master' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings') => void;
 }
 
 export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   user,
   students,
+  teachers = [],
   classes,
   attendanceRecords,
   bkNotes = [],
@@ -35,8 +37,8 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   externalActiveTab,
   onTabChange
 }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'scan' | 'checkout' | 'today' | 'reports' | 'bk'>(
-    (externalActiveTab as any) || 'dashboard'
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'scan' | 'checkout' | 'today' | 'reports' | 'teacherAdmin'>(
+    externalActiveTab === 'teacherAdmin' ? 'teacherAdmin' : ((externalActiveTab as any) || 'dashboard')
   );
   const [reportsSubTab, setReportsSubTab] = useState<'daily' | 'monthly'>('daily');
   const [showScannerModal, setShowScannerModal] = useState(false);
@@ -44,10 +46,12 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
 
   useEffect(() => {
     if (externalActiveTab) {
-      if (externalActiveTab === 'dashboard' || externalActiveTab === 'reports' || externalActiveTab === 'scan' || externalActiveTab === 'bk') {
+      if (externalActiveTab === 'dashboard' || externalActiveTab === 'reports' || externalActiveTab === 'scan' || externalActiveTab === 'teacherAdmin') {
         setActiveTab(externalActiveTab as any);
       } else if (externalActiveTab === 'master') {
         setActiveTab('today');
+      } else if (externalActiveTab === 'bk') {
+        setActiveTab('teacherAdmin');
       }
     }
   }, [externalActiveTab]);
@@ -255,6 +259,16 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
       {/* Bento Tabs Container */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="flex border-b border-slate-200 bg-slate-50/80 p-2 overflow-x-auto gap-1.5">
+          <button
+            onClick={() => setActiveTab('teacherAdmin')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-extrabold rounded-2xl transition-all cursor-pointer ${
+              activeTab === 'teacherAdmin'
+                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            <BookOpen className="w-4 h-4 text-emerald-800" /> Administrasi Kelas & KBM
+          </button>
           <button
             onClick={() => setActiveTab('scan')}
             className={`flex items-center gap-2 px-4 py-2.5 text-xs font-extrabold rounded-2xl transition-all cursor-pointer ${
@@ -609,14 +623,14 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
             </div>
           )}
 
-          {/* TAB BK */}
-          {activeTab === 'bk' && (
-            <BKCounselingSection
+          {/* TAB ADMINISTRASI KELAS & KBM */}
+          {activeTab === 'teacherAdmin' && (
+            <TeacherClassAdminSection
               user={user}
               students={students}
+              teachers={teachers}
               classes={classes}
               attendanceRecords={attendanceRecords}
-              bkNotes={bkNotes}
               onRefreshData={onRefreshData}
             />
           )}

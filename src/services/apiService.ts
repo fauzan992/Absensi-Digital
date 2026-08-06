@@ -156,14 +156,41 @@ async function triggerAutoSupabaseSync() {
   }
 }
 
+// Dynamic Favicon Helper
+export function updateAppFavicon(logoUrl?: string) {
+  if (typeof document === 'undefined') return;
+  const href = logoUrl || "/school-logo.jpg";
+  let link: HTMLLinkElement | null = document.querySelector("#app-favicon") || document.querySelector("link[rel*='icon']");
+  if (!link) {
+    link = document.createElement('link');
+    link.id = 'app-favicon';
+    link.rel = 'icon';
+    document.getElementsByTagName('head')[0].appendChild(link);
+  }
+  link.href = href;
+  if (href.startsWith('data:image/svg')) {
+    link.type = 'image/svg+xml';
+  } else if (href.startsWith('data:image/png')) {
+    link.type = 'image/png';
+  } else if (href.startsWith('data:image/webp')) {
+    link.type = 'image/webp';
+  } else {
+    link.type = 'image/jpeg';
+  }
+}
+
 export const apiService = {
   // Settings
   async getSettings(): Promise<{ success: boolean; settings?: SchoolSettings; error?: string }> {
     const res = await safeFetchJson<{ settings?: SchoolSettings }>('/api/settings');
+    let settings: SchoolSettings;
     if (res.ok && res.data?.settings) {
-      return { success: true, settings: res.data.settings };
+      settings = res.data.settings;
+    } else {
+      settings = getLocalSettings();
     }
-    return { success: true, settings: getLocalSettings() };
+    updateAppFavicon(settings.logoUrl);
+    return { success: true, settings };
   },
 
   async updateSettings(settingsData: Partial<SchoolSettings>): Promise<{ success: boolean; settings?: SchoolSettings; message?: string; error?: string }> {
@@ -172,14 +199,21 @@ export const apiService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settingsData)
     });
-    if (res.ok && res.data) {
-      return { success: true, settings: res.data.settings, message: res.data.message };
+
+    let settings: SchoolSettings;
+    if (res.ok && res.data?.settings) {
+      settings = res.data.settings;
+    } else {
+      const current = getLocalSettings();
+      settings = { ...current, ...settingsData };
+      saveLocalSettings(settings);
     }
 
-    const current = getLocalSettings();
-    const updated = { ...current, ...settingsData };
-    saveLocalSettings(updated);
-    return { success: true, settings: updated, message: 'Pengaturan sekolah berhasil diperbarui.' };
+    updateAppFavicon(settings.logoUrl);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('school-settings-updated', { detail: settings }));
+    }
+    return { success: true, settings, message: res.data?.message || 'Pengaturan sekolah berhasil diperbarui.' };
   },
 
   // Auth
@@ -233,7 +267,7 @@ export const apiService = {
     const teachers = getLocalTeachers();
     const teacher = teachers.find(t => t.username.toLowerCase() === lowerUname || t.nip === trimmedUsername);
     if (teacher) {
-      if (trimmedPassword === '123' || trimmedPassword === 'guru123' || trimmedPassword === 'admin123' || trimmedPassword === 'bk123' || trimmedPassword === teacher.nip || trimmedPassword === teacher.nip.slice(-6)) {
+      if ((teacher.password && trimmedPassword === teacher.password) || trimmedPassword === '123' || trimmedPassword === 'guru123' || trimmedPassword === 'admin123' || trimmedPassword === 'bk123' || trimmedPassword === teacher.nip || trimmedPassword === teacher.nip.slice(-6)) {
         return {
           success: true,
           user: {
@@ -660,6 +694,7 @@ export const apiService = {
     } else {
       record = {
         id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        studentId: student.id,
         nisn: student.nisn,
         studentName: student.name,
         classId: student.classId,
@@ -743,6 +778,7 @@ export const apiService = {
       } else {
         currentRecords.push({
           id: `att-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          studentId: std.id,
           nisn: std.nisn,
           studentName: std.name,
           classId: std.classId,
@@ -782,7 +818,7 @@ export const apiService = {
       const idx = currentRecords.findIndex(r => r.nisn === item.nisn && r.date === dateStr);
       if (idx !== -1) {
         currentRecords[idx].checkOutTime = timeStr;
-        currentRecords[idx].checkOutStatus = item.checkedOut ? 'Pulang Sesuai Jam' : 'Izin Pulang Awal';
+        currentRecords[idx].checkOutStatus = item.checkedOut ? 'Pulang' : 'Bolos / Pulang Awal';
         currentRecords[idx].checkOutBy = recordedBy;
         if (item.notes) currentRecords[idx].notes = item.notes;
       }

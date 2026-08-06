@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { SchoolSettings } from '../types';
+import { apiService } from '../services/apiService';
 
 interface SchoolLogoProps {
   className?: string;
@@ -13,15 +15,40 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({
   className = '',
   size = 'md',
   showText = false,
-  logoUrl,
-  schoolName,
-  subName
+  logoUrl: logoUrlProp,
+  schoolName: schoolNameProp,
+  subName: subNameProp
 }) => {
   const [imgError, setImgError] = useState(false);
+  const [fetchedSettings, setFetchedSettings] = useState<SchoolSettings | null>(null);
 
-  const srcImage = logoUrl || "/school-logo.jpg";
-  const nameText = schoolName || "SMA ISLAM RA'IYATUL HUSNAN";
-  const subText = subName || "WRINGIN BONDOWOSO";
+  useEffect(() => {
+    // Fetch settings if props aren't provided
+    if (!logoUrlProp || !schoolNameProp || !subNameProp) {
+      apiService.getSettings().then(res => {
+        if (res.success && res.settings) {
+          setFetchedSettings(res.settings);
+        }
+      });
+    }
+
+    const handleSettingsEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<SchoolSettings>;
+      if (customEvent.detail) {
+        setFetchedSettings(customEvent.detail);
+        setImgError(false);
+      }
+    };
+
+    window.addEventListener('school-settings-updated', handleSettingsEvent);
+    return () => {
+      window.removeEventListener('school-settings-updated', handleSettingsEvent);
+    };
+  }, [logoUrlProp, schoolNameProp, subNameProp]);
+
+  const srcImage = logoUrlProp || fetchedSettings?.logoUrl || "/school-logo.jpg";
+  const nameText = schoolNameProp || fetchedSettings?.namaSekolah || "SMA ISLAM RA'IYATUL HUSNAN";
+  const subText = subNameProp || fetchedSettings?.subNamaSekolah || "WRINGIN BONDOWOSO";
 
   useEffect(() => {
     setImgError(false);

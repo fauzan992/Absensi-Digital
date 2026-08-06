@@ -4,15 +4,15 @@ import { SchoolLogo } from './SchoolLogo';
 import {
   School, Barcode, FileSpreadsheet, Upload, Users, GraduationCap,
   ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, X, Shield,
-  Sparkles, CheckCircle2, UserCheck, LayoutDashboard, Heart, Settings, Clock, Database, Award, HeartHandshake, Building2
+  Sparkles, CheckCircle2, UserCheck, LayoutDashboard, Heart, Settings, Clock, Database, Award, HeartHandshake, Building2, BookOpen
 } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   user: User | null;
-  activeTab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings';
-  onSelectTab: (tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings', subTab?: 'students' | 'teachers' | 'classes' | 'guardians') => void;
+  activeTab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings';
+  onSelectTab: (tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings', subTab?: 'students' | 'teachers' | 'classes' | 'guardians') => void;
   masterSubTab?: 'students' | 'teachers' | 'classes' | 'guardians';
 }
 
@@ -29,7 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   if (!user) return null;
 
   const handleNavClick = (
-    tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'scan' | 'reports' | 'import' | 'settings',
+    tab: 'dashboard' | 'master' | 'discipline' | 'bk' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings',
     subTab?: 'students' | 'teachers' | 'classes' | 'guardians'
   ) => {
     onSelectTab(tab, subTab);
@@ -171,26 +171,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {/* 1.8. LAYANAN BIMBINGAN KONSELING (BK) MENU */}
-          <button
-            onClick={() => handleNavClick('bk')}
-            className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'bk'
-                ? 'bg-emerald-800/90 text-white shadow-md border-l-4 border-amber-400'
-                : 'text-emerald-200/90 hover:bg-emerald-900/60 hover:text-white'
-            }`}
-            title="Layanan Bimbingan & Konseling (BK)"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <HeartHandshake className="w-5 h-5 text-teal-300 shrink-0" />
-              {isOpen && <span className="truncate">Bimbingan Konseling (BK)</span>}
-            </div>
-            {isOpen && (
-              <span className="text-[9px] bg-teal-500/30 text-teal-200 border border-teal-400/30 px-2 py-0.5 rounded-full font-extrabold uppercase">
-                BK
-              </span>
-            )}
-          </button>
+          {/* 1.7. ADMINISTRASI KELAS & KBM (KHUSUS GURU) */}
+          {(user.role === 'guru' || user.role === 'admin') && (
+            <button
+              onClick={() => handleNavClick('teacherAdmin')}
+              className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'teacherAdmin'
+                  ? 'bg-emerald-800/90 text-white shadow-md border-l-4 border-amber-400'
+                  : 'text-emerald-200/90 hover:bg-emerald-900/60 hover:text-white'
+              }`}
+              title="Administrasi Kelas & KBM"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <BookOpen className="w-5 h-5 text-amber-300 shrink-0" />
+                {isOpen && <span className="truncate">Administrasi Kelas & KBM</span>}
+              </div>
+              {isOpen && (
+                <span className="text-[9px] bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full font-extrabold uppercase">
+                  GURU
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* 1.8. LAYANAN BIMBINGAN KONSELING (BK) MENU - KHUSUS GURU BK & ADMIN */}
+          {(user.role === 'bk' || user.role === 'admin') && (
+            <button
+              onClick={() => handleNavClick('bk')}
+              className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'bk'
+                  ? 'bg-emerald-800/90 text-white shadow-md border-l-4 border-amber-400'
+                  : 'text-emerald-200/90 hover:bg-emerald-900/60 hover:text-white'
+              }`}
+              title="Layanan Bimbingan & Konseling (BK)"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <HeartHandshake className="w-5 h-5 text-teal-300 shrink-0" />
+                {isOpen && <span className="truncate">Bimbingan Konseling (BK)</span>}
+              </div>
+              {isOpen && (
+                <span className="text-[9px] bg-teal-500/30 text-teal-200 border border-teal-400/30 px-2 py-0.5 rounded-full font-extrabold uppercase">
+                  BK
+                </span>
+              )}
+            </button>
+          )}
 
           {/* 2. SCAN BARCODE NISN MENU */}
           <button

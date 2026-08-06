@@ -9,12 +9,12 @@ export const INITIAL_CLASSES: ClassRoom[] = [
 ];
 
 export const INITIAL_TEACHERS: Teacher[] = [
-  { id: 'tch-1', nip: '198504122010011002', name: 'Ust. Ahmad Fausan, S.Pd', gender: 'L', username: 'ahmad', subject: 'Matematika', assignedClassId: 'cls-1', assignedClassName: 'X MIPA 1', role: 'guru' },
-  { id: 'tch-2', nip: '199008232015022001', name: 'Ustadzah Siti Nurhaliza, M.Pd', gender: 'P', username: 'siti', subject: 'Fisika', assignedClassId: 'cls-3', assignedClassName: 'XI MIPA 1', role: 'guru' },
-  { id: 'tch-3', nip: '198811052012011003', name: 'Ust. Muhammad Ridwan, S.Ag', gender: 'L', username: 'ridwan', subject: 'Pendidikan Agama Islam', assignedClassId: 'cls-5', assignedClassName: 'XII MIPA 1', role: 'guru' },
-  { id: 'tch-4', nip: '199203152018022004', name: 'Ustadzah Nurul Hidayah, S.Si', gender: 'P', username: 'nurul', subject: 'Biologi', assignedClassId: 'cls-2', assignedClassName: 'X MIPA 2', role: 'guru' },
-  { id: 'tch-5', nip: '198307202009011005', name: 'Ust. Bambang Kurniawan, S.E', gender: 'L', username: 'bambang', subject: 'Ekonomi', assignedClassId: 'cls-4', assignedClassName: 'XI IPS 1', role: 'guru' },
-  { id: 'tch-bk', nip: '199105152016022005', name: 'Ibu Rahmawati, S.Psi', gender: 'P', username: 'rahma', subject: 'Bimbingan Konseling (BK)', role: 'bk' },
+  { id: 'tch-1', nip: '198504122010011002', name: 'Ust. Ahmad Fausan, S.Pd', gender: 'L', username: 'ahmad', password: 'guru123', subject: 'Matematika', assignedClassId: 'cls-1', assignedClassName: 'X MIPA 1', role: 'guru' },
+  { id: 'tch-2', nip: '199008232015022001', name: 'Ustadzah Siti Nurhaliza, M.Pd', gender: 'P', username: 'siti', password: 'guru123', subject: 'Fisika', assignedClassId: 'cls-3', assignedClassName: 'XI MIPA 1', role: 'guru' },
+  { id: 'tch-3', nip: '198811052012011003', name: 'Ust. Muhammad Ridwan, S.Ag', gender: 'L', username: 'ridwan', password: 'guru123', subject: 'Pendidikan Agama Islam', assignedClassId: 'cls-5', assignedClassName: 'XII MIPA 1', role: 'guru' },
+  { id: 'tch-4', nip: '199203152018022004', name: 'Ustadzah Nurul Hidayah, S.Si', gender: 'P', username: 'nurul', password: 'guru123', subject: 'Biologi', assignedClassId: 'cls-2', assignedClassName: 'X MIPA 2', role: 'guru' },
+  { id: 'tch-5', nip: '198307202009011005', name: 'Ust. Bambang Kurniawan, S.E', gender: 'L', username: 'bambang', password: 'guru123', subject: 'Ekonomi', assignedClassId: 'cls-4', assignedClassName: 'XI IPS 1', role: 'guru' },
+  { id: 'tch-bk', nip: '199105152016022005', name: 'Ibu Rahmawati, S.Psi', gender: 'P', username: 'rahma', password: 'bk123', subject: 'Bimbingan Konseling (BK)', role: 'bk' },
 ];
 
 export const INITIAL_BK_NOTES: BKNote[] = [

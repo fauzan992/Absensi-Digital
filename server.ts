@@ -265,7 +265,8 @@ async function startServer() {
     );
 
     if (teacher) {
-      const validPass = trimmedPassword === 'guru123' || 
+      const validPass = (teacher.password && trimmedPassword === teacher.password) ||
+                        trimmedPassword === 'guru123' || 
                         trimmedPassword === 'admin123' || 
                         trimmedPassword === 'bk123' ||
                         trimmedPassword === '123' || 
@@ -426,7 +427,7 @@ async function startServer() {
 
   // Teacher CRUD
   app.post('/api/master/teachers', (req, res) => {
-    const { nip, name, gender, username, subject, assignedClassId, role } = req.body;
+    const { nip, name, gender, username, password, subject, assignedClassId, role } = req.body;
 
     if (!nip || !name || !username) {
       return res.status(400).json({ error: 'NIP, Nama, dan Username wajib diisi.' });
@@ -439,6 +440,7 @@ async function startServer() {
       name: name.trim(),
       gender: gender || 'L',
       username: username.trim().toLowerCase(),
+      password: password ? password.trim() : undefined,
       subject: subject || 'Mata Pelajaran',
       role: role || 'guru',
       assignedClassId: assignedClassId || undefined,
@@ -464,7 +466,7 @@ async function startServer() {
       return res.status(404).json({ error: 'Guru tidak ditemukan.' });
     }
 
-    const { nip, name, gender, username, subject, assignedClassId, role } = req.body;
+    const { nip, name, gender, username, password, subject, assignedClassId, role } = req.body;
     const assignedClass = classesDB.find(c => c.id === assignedClassId);
 
     teachersDB[index] = {
@@ -473,6 +475,7 @@ async function startServer() {
       name: name || teachersDB[index].name,
       gender: gender || teachersDB[index].gender,
       username: username ? username.toLowerCase() : teachersDB[index].username,
+      password: password !== undefined ? (password.trim() || undefined) : teachersDB[index].password,
       subject: subject || teachersDB[index].subject,
       role: role || teachersDB[index].role || 'guru',
       assignedClassId: assignedClassId || undefined,
