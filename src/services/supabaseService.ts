@@ -166,7 +166,9 @@ CREATE TABLE IF NOT EXISTS teachers (
   name TEXT NOT NULL,
   gender TEXT DEFAULT 'L',
   username TEXT NOT NULL,
+  password TEXT,
   subject TEXT,
+  role TEXT DEFAULT 'guru',
   assigned_class_id TEXT,
   assigned_class_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -188,6 +190,9 @@ CREATE TABLE IF NOT EXISTS students (
 );
 
 -- Ensure missing columns exist for existing tables
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'guru';
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS password TEXT;
+
 ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS default_password TEXT DEFAULT '123';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_name TEXT;
@@ -344,11 +349,19 @@ export async function pushAllToSupabase(data: {
       username: t.username,
       subject: t.subject || 'Mata Pelajaran',
       assigned_class_id: t.assignedClassId || '',
-      assigned_class_name: t.assignedClassName || ''
+      assigned_class_name: t.assignedClassName || '',
+      role: t.role || 'guru',
+      password: t.password || ''
     }));
 
     if (teachersData.length > 0) {
-      const { error: errTeachers } = await supabase.from('teachers').upsert(teachersData, { onConflict: 'id' });
+      let { error: errTeachers } = await supabase.from('teachers').upsert(teachersData, { onConflict: 'id' });
+      if (errTeachers && errTeachers.message && (errTeachers.message.includes('role') || errTeachers.message.includes('password'))) {
+        console.warn('Supabase teachers table missing role/password column. Retrying without them...');
+        const teachersDataBasic = teachersData.map(({ role, password, ...rest }) => rest);
+        const retryRes = await supabase.from('teachers').upsert(teachersDataBasic, { onConflict: 'id' });
+        errTeachers = retryRes.error;
+      }
       if (errTeachers) throw new Error(`Tabel teachers: ${errTeachers.message}`);
     }
 
@@ -462,16 +475,22 @@ export async function pullAllFromSupabase(): Promise<{
       studentCount: c.student_count || 0
     }));
 
-    const teachers: Teacher[] = (resTeachers.data || []).map(t => ({
-      id: t.id,
-      nip: t.nip,
-      name: t.name,
-      gender: (t.gender === 'P' ? 'P' : 'L') as 'L' | 'P',
-      username: t.username,
-      subject: t.subject || 'Mata Pelajaran',
-      assignedClassId: t.assigned_class_id || undefined,
-      assignedClassName: t.assigned_class_name || undefined
-    }));
+    const savedBackup = readLocalDBBackup();
+    const teachers: Teacher[] = (resTeachers.data || []).map(t => {
+      const existing = (savedBackup.teachers || []).find(l => l.id === t.id || l.nip === t.nip);
+      return {
+        id: t.id,
+        nip: t.nip,
+        name: t.name,
+        gender: (t.gender === 'P' ? 'P' : 'L') as 'L' | 'P',
+        username: t.username,
+        subject: t.subject || 'Mata Pelajaran',
+        role: (t.role as any) || existing?.role || (t.subject && t.subject.toLowerCase().includes('bk') ? 'bk' : 'guru'),
+        password: t.password || existing?.password || undefined,
+        assignedClassId: t.assigned_class_id || undefined,
+        assignedClassName: t.assigned_class_name || undefined
+      };
+    });
 
     const students: Student[] = (resStudents.data || []).map(s => ({
       id: s.id,

@@ -126,10 +126,18 @@ export async function pushAllFromBrowser(url: string, anonKey: string, localData
       username: t.username,
       subject: t.subject || null,
       assigned_class_id: t.assignedClassId || null,
-      assigned_class_name: t.assignedClassName || null
+      assigned_class_name: t.assignedClassName || null,
+      role: t.role || 'guru',
+      password: t.password || null
     }));
     if (teachersData.length > 0) {
-      const { error: errTeachers } = await supabase.from('teachers').upsert(teachersData, { onConflict: 'id' });
+      let { error: errTeachers } = await supabase.from('teachers').upsert(teachersData, { onConflict: 'id' });
+      if (errTeachers && errTeachers.message && (errTeachers.message.includes('role') || errTeachers.message.includes('password'))) {
+        console.warn('Supabase teachers table missing role/password column. Retrying without them...');
+        const teachersDataBasic = teachersData.map(({ role, password, ...rest }) => rest);
+        const retryRes = await supabase.from('teachers').upsert(teachersDataBasic, { onConflict: 'id' });
+        errTeachers = retryRes.error;
+      }
       if (errTeachers) throw new Error(`Tabel teachers: ${errTeachers.message}`);
     }
 
@@ -236,16 +244,27 @@ export async function pullAllFromBrowser(url: string, anonKey: string): Promise<
       studentCount: c.student_count || 0
     }));
 
-    const teachers: Teacher[] = (rawTeachers || []).map((t: any) => ({
-      id: t.id,
-      nip: t.nip,
-      name: t.name,
-      gender: t.gender || 'L',
-      username: t.username,
-      subject: t.subject || undefined,
-      assignedClassId: t.assigned_class_id || undefined,
-      assignedClassName: t.assigned_class_name || undefined
-    }));
+    let localTeachersList: Teacher[] = [];
+    try {
+      const rawLocal = localStorage.getItem('app_master_teachers');
+      if (rawLocal) localTeachersList = JSON.parse(rawLocal);
+    } catch (e) {}
+
+    const teachers: Teacher[] = (rawTeachers || []).map((t: any) => {
+      const existing = localTeachersList.find(l => l.id === t.id || l.nip === t.nip);
+      return {
+        id: t.id,
+        nip: t.nip,
+        name: t.name,
+        gender: (t.gender === 'P' ? 'P' : 'L') as 'L' | 'P',
+        username: t.username,
+        subject: t.subject || undefined,
+        role: (t.role as any) || existing?.role || (t.subject && t.subject.toLowerCase().includes('bk') ? 'bk' : 'guru'),
+        password: t.password || existing?.password || undefined,
+        assignedClassId: t.assigned_class_id || undefined,
+        assignedClassName: t.assigned_class_name || undefined
+      };
+    });
 
     const students: Student[] = (rawStudents || []).map((s: any) => ({
       id: s.id,
@@ -330,5 +349,32 @@ export async function deleteStudentFromBrowserSupabase(id: string, nisn?: string
     if (nisn) await supabase.from('students').delete().eq('nisn', nisn);
   } catch (e) {
     console.warn('Error deleting student from Supabase browser client:', e);
+  }
+}
+
+export async function upsertTeacherToBrowserSupabase(teacher: Teacher) {
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    const payload: any = {
+      id: teacher.id,
+      nip: teacher.nip,
+      name: teacher.name,
+      gender: teacher.gender || 'L',
+      username: teacher.username,
+      subject: teacher.subject || null,
+      assigned_class_id: teacher.assignedClassId || null,
+      assigned_class_name: teacher.assignedClassName || null,
+      role: teacher.role || 'guru',
+      password: teacher.password || null
+    };
+
+    let { error } = await supabase.from('teachers').upsert(payload, { onConflict: 'id' });
+    if (error && error.message && (error.message.includes('role') || error.message.includes('password'))) {
+      const { role, password, ...basicPayload } = payload;
+      await supabase.from('teachers').upsert(basicPayload, { onConflict: 'id' });
+    }
+  } catch (e) {
+    console.warn('Error upserting teacher to Supabase browser client:', e);
   }
 }

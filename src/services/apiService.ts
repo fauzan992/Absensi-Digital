@@ -1,6 +1,6 @@
 import { User, Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus, UserRole, SchoolSettings, BKNote } from '../types';
 import { INITIAL_CLASSES, INITIAL_TEACHERS, INITIAL_STUDENTS, generateInitialAttendance, INITIAL_BK_NOTES } from '../data/mockDatabase';
-import { getStoredSupabaseConfig, pushAllFromBrowser, pullAllFromBrowser, getBrowserSupabaseClient, deleteTeacherFromBrowserSupabase, deleteClassFromBrowserSupabase, deleteStudentFromBrowserSupabase } from './clientSupabase';
+import { getStoredSupabaseConfig, pushAllFromBrowser, pullAllFromBrowser, getBrowserSupabaseClient, deleteTeacherFromBrowserSupabase, deleteClassFromBrowserSupabase, deleteStudentFromBrowserSupabase, upsertTeacherToBrowserSupabase } from './clientSupabase';
 import { syncClassesAndStudentsData } from '../utils/dataSync';
 
 // Safe JSON fetch wrapper that checks Content-Type to prevent HTML "Unexpected token T" errors on Vercel
@@ -518,17 +518,19 @@ export const apiService = {
     const teachers = getLocalTeachers();
     const newTeacher: Teacher = {
       id: `tch-${Date.now()}`,
-      nip: teacherData.nip || '',
-      name: teacherData.name || '',
+      nip: (teacherData.nip || '').trim(),
+      name: (teacherData.name || '').trim(),
       gender: teacherData.gender || 'L',
-      username: teacherData.username || 'guru',
-      subject: teacherData.subject,
+      username: (teacherData.username || 'guru').trim().toLowerCase(),
+      password: teacherData.password ? teacherData.password.trim() : undefined,
+      subject: teacherData.subject || 'Mata Pelajaran',
       assignedClassId: teacherData.assignedClassId,
       assignedClassName: teacherData.assignedClassName,
       role: teacherData.role || 'guru'
     };
     teachers.push(newTeacher);
     saveLocalTeachers(teachers);
+    await upsertTeacherToBrowserSupabase(newTeacher);
     triggerAutoSupabaseSync();
 
     return { success: true, teacher: newTeacher, message: 'Data guru berhasil ditambahkan.' };
@@ -549,6 +551,7 @@ export const apiService = {
     if (idx !== -1) {
       teachers[idx] = { ...teachers[idx], ...teacherData };
       saveLocalTeachers(teachers);
+      await upsertTeacherToBrowserSupabase(teachers[idx]);
       triggerAutoSupabaseSync();
       return { success: true, teacher: teachers[idx], message: 'Data guru berhasil diperbarui.' };
     }

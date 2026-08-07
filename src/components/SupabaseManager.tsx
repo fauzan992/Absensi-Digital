@@ -42,7 +42,9 @@ CREATE TABLE IF NOT EXISTS teachers (
   name TEXT NOT NULL,
   gender TEXT DEFAULT 'L',
   username TEXT NOT NULL,
+  password TEXT,
   subject TEXT,
+  role TEXT DEFAULT 'guru',
   assigned_class_id TEXT,
   assigned_class_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
@@ -64,6 +66,9 @@ CREATE TABLE IF NOT EXISTS students (
 );
 
 -- Ensure missing columns exist for existing tables
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'guru';
+ALTER TABLE teachers ADD COLUMN IF NOT EXISTS password TEXT;
+
 ALTER TABLE students ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE students ADD COLUMN IF NOT EXISTS default_password TEXT DEFAULT '123';
 ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_name TEXT;
