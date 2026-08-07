@@ -1,6 +1,6 @@
 import { User, Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus, UserRole, SchoolSettings, BKNote } from '../types';
 import { INITIAL_CLASSES, INITIAL_TEACHERS, INITIAL_STUDENTS, generateInitialAttendance, INITIAL_BK_NOTES } from '../data/mockDatabase';
-import { getStoredSupabaseConfig, pushAllFromBrowser, getBrowserSupabaseClient, deleteTeacherFromBrowserSupabase, deleteClassFromBrowserSupabase, deleteStudentFromBrowserSupabase } from './clientSupabase';
+import { getStoredSupabaseConfig, pushAllFromBrowser, pullAllFromBrowser, getBrowserSupabaseClient, deleteTeacherFromBrowserSupabase, deleteClassFromBrowserSupabase, deleteStudentFromBrowserSupabase } from './clientSupabase';
 import { syncClassesAndStudentsData } from '../utils/dataSync';
 
 // Safe JSON fetch wrapper that checks Content-Type to prevent HTML "Unexpected token T" errors on Vercel
@@ -244,6 +244,22 @@ export const apiService = {
       return { success: true, user: res.data.user };
     }
 
+    // Attempt to pull latest data from Supabase directly in browser if on static mode or new device
+    try {
+      const sbConfig = getStoredSupabaseConfig();
+      if (sbConfig.url && sbConfig.anonKey) {
+        const pullRes = await pullAllFromBrowser(sbConfig.url, sbConfig.anonKey);
+        if (pullRes.success && pullRes.data) {
+          if (pullRes.data.classes?.length > 0) saveLocalClasses(pullRes.data.classes);
+          if (pullRes.data.teachers?.length > 0) saveLocalTeachers(pullRes.data.teachers);
+          if (pullRes.data.students?.length > 0) saveLocalStudents(pullRes.data.students);
+          if (pullRes.data.attendance?.length > 0) saveLocalAttendance(pullRes.data.attendance);
+        }
+      }
+    } catch (err) {
+      console.warn('Browser Supabase pull on login:', err);
+    }
+
     // Client fallback authentication
     const trimmedUsername = username.trim();
     const trimmedPassword = password.trim();
@@ -267,7 +283,7 @@ export const apiService = {
           }
         };
       }
-      return { success: false, error: 'NISN Siswa tidak ditemukan dalam database sekolah.' };
+      return { success: false, error: (res.data?.error && !res.isHtml) ? res.data.error : 'NISN Siswa tidak terdaftar dalam database sekolah.' };
     }
 
     // Staff auto-detection (Admin / Guru / BK)
@@ -311,7 +327,8 @@ export const apiService = {
       return { success: false, error: 'Password Guru BK salah.' };
     }
 
-    return { success: false, error: res.error || 'Username/NIP atau password yang Anda masukkan salah.' };
+    const cleanError = (res.data?.error && !res.isHtml) ? res.data.error : 'Username/NIP atau Password yang Anda masukkan tidak terdaftar.';
+    return { success: false, error: cleanError };
   },
 
   // Master Data
@@ -327,6 +344,23 @@ export const apiService = {
       saveLocalStudents(synced.students);
       saveLocalTeachers(synced.teachers);
       return synced;
+    }
+
+    // Try browser Supabase pull on fallback/static mode
+    try {
+      const sbConfig = getStoredSupabaseConfig();
+      if (sbConfig.url && sbConfig.anonKey) {
+        const pullRes = await pullAllFromBrowser(sbConfig.url, sbConfig.anonKey);
+        if (pullRes.success && pullRes.data && pullRes.data.students.length > 0) {
+          saveLocalClasses(pullRes.data.classes);
+          saveLocalStudents(pullRes.data.students);
+          saveLocalTeachers(pullRes.data.teachers);
+          saveLocalAttendance(pullRes.data.attendance);
+          return syncClassesAndStudentsData(pullRes.data.classes, pullRes.data.students, pullRes.data.teachers);
+        }
+      }
+    } catch (err) {
+      console.warn('Browser Supabase pull fallback in getMasterData:', err);
     }
 
     const localSynced = syncClassesAndStudentsData(getLocalClasses(), getLocalStudents(), getLocalTeachers());
