@@ -20,17 +20,23 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({
   subName: subNameProp
 }) => {
   const [imgError, setImgError] = useState(false);
-  const [fetchedSettings, setFetchedSettings] = useState<SchoolSettings | null>(null);
+  const [fetchedSettings, setFetchedSettings] = useState<SchoolSettings | null>(() => {
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem('app_school_settings');
+      if (raw) {
+        try { return JSON.parse(raw); } catch { return null; }
+      }
+    }
+    return null;
+  });
 
   useEffect(() => {
-    // Fetch settings if props aren't provided
-    if (!logoUrlProp || !schoolNameProp || !subNameProp) {
-      apiService.getSettings().then(res => {
-        if (res.success && res.settings) {
-          setFetchedSettings(res.settings);
-        }
-      });
-    }
+    // Always fetch latest settings to keep in sync across devices
+    apiService.getSettings().then(res => {
+      if (res.success && res.settings) {
+        setFetchedSettings(res.settings);
+      }
+    });
 
     const handleSettingsEvent = (e: Event) => {
       const customEvent = e as CustomEvent<SchoolSettings>;
@@ -44,7 +50,7 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({
     return () => {
       window.removeEventListener('school-settings-updated', handleSettingsEvent);
     };
-  }, [logoUrlProp, schoolNameProp, subNameProp]);
+  }, []);
 
   const srcImage = logoUrlProp || fetchedSettings?.logoUrl || "/school-logo.jpg";
   const nameText = schoolNameProp || fetchedSettings?.namaSekolah || "SMA ISLAM RA'IYATUL HUSNAN";

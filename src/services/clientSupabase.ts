@@ -193,6 +193,42 @@ export async function pushAllFromBrowser(url: string, anonKey: string, localData
       if (errAtt) throw new Error(`Tabel attendance: ${errAtt.message}`);
     }
 
+    // 5. School Settings
+    try {
+      const rawSettings = localStorage.getItem('app_school_settings');
+      if (rawSettings) {
+        const settings = JSON.parse(rawSettings);
+        const settingsRow = {
+          id: 'default',
+          nama_sekolah: settings.namaSekolah,
+          sub_nama_sekolah: settings.subNamaSekolah,
+          npsn: settings.npsn,
+          nss: settings.nss,
+          akreditasi: settings.akreditasi,
+          alamat: settings.alamat,
+          desa_kelurahan: settings.desaKelurahan,
+          kecamatan: settings.kecamatan,
+          kabupaten_kota: settings.kabupatenKota,
+          provinsi: settings.provinsi,
+          kode_pos: settings.kodePos,
+          telepon: settings.telepon,
+          email: settings.email,
+          website: settings.website,
+          logo_url: settings.logoUrl,
+          nama_kepala_sekolah: settings.namaKepalaSekolah,
+          nip_kepala_sekolah: settings.nipKepalaSekolah,
+          naungan_yayasan: settings.naunganYayasan,
+          jam_masuk: settings.jamMasuk,
+          batas_terlambat: settings.batasTerlambat,
+          jam_pulang: settings.jamPulang,
+          batas_pulang: settings.batasPulang
+        };
+        await supabase.from('school_settings').upsert([settingsRow], { onConflict: 'id' });
+      }
+    } catch (e) {
+      console.warn('Sync school_settings to Supabase error:', e);
+    }
+
     const nowIso = new Date().toISOString();
     localStorage.setItem(STORAGE_KEY_LAST_SYNC, nowIso);
 
@@ -234,6 +270,46 @@ export async function pullAllFromBrowser(url: string, anonKey: string): Promise<
 
     const { data: rawAtt, error: errAtt } = await supabase.from('attendance').select('*');
     if (errAtt) throw new Error(`Attendance: ${errAtt.message}`);
+
+    // Pull school settings if available
+    try {
+      const { data: rawSettings } = await supabase.from('school_settings').select('*').single();
+      if (rawSettings) {
+        const settingsObj: SchoolSettings = {
+          namaSekolah: rawSettings.nama_sekolah || "SMA ISLAM RA'IYATUL HUSNAN",
+          subNamaSekolah: rawSettings.sub_nama_sekolah || "WRINGIN BONDOWOSO",
+          npsn: rawSettings.npsn || "20521620",
+          nss: rawSettings.nss || "302052202010",
+          akreditasi: rawSettings.akreditasi || "B",
+          alamat: rawSettings.alamat || "Jl. Raya Wringin No. 45",
+          desaKelurahan: rawSettings.desa_kelurahan || "Wringin",
+          kecamatan: rawSettings.kecamatan || "Wringin",
+          kabupatenKota: rawSettings.kabupaten_kota || "Bondowoso",
+          provinsi: rawSettings.provinsi || "Jawa Timur",
+          kodePos: rawSettings.kode_pos || "68252",
+          telepon: rawSettings.telepon || "(0332) 421xxx",
+          email: rawSettings.email || "smaislam.raiyatulhusnan@gmail.sch.id",
+          website: rawSettings.website || "www.smaislam-raiyatulhusnan.sch.id",
+          logoUrl: rawSettings.logo_url || "/school-logo.jpg",
+          namaKepalaSekolah: rawSettings.nama_kepala_sekolah || "Ust. Ahmad Fausan, S.Pd",
+          nipKepalaSekolah: rawSettings.nip_kepala_sekolah || "198504122010011002",
+          naunganYayasan: rawSettings.naungan_yayasan || "Yayasan Ra'iyatul Husnan Wringin",
+          jamMasuk: rawSettings.jam_masuk || '07:00',
+          batasTerlambat: rawSettings.batas_terlambat || '07:15',
+          jamPulang: rawSettings.jam_pulang || '14:00',
+          batasPulang: rawSettings.batas_pulang || '16:00',
+          hariLiburRutin: [0, 6],
+          hariLiburKhusus: [],
+          allowAbsenLibur: false
+        };
+        localStorage.setItem('app_school_settings', JSON.stringify(settingsObj));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('school-settings-updated', { detail: settingsObj }));
+        }
+      }
+    } catch (e) {
+      console.warn('Pull school_settings error:', e);
+    }
 
     const classes: ClassRoom[] = (rawClasses || []).map((c: any) => ({
       id: c.id,
@@ -376,5 +452,40 @@ export async function upsertTeacherToBrowserSupabase(teacher: Teacher) {
     }
   } catch (e) {
     console.warn('Error upserting teacher to Supabase browser client:', e);
+  }
+}
+
+export async function upsertSettingsToBrowserSupabase(settings: SchoolSettings) {
+  const supabase = getBrowserSupabaseClient();
+  if (!supabase) return;
+  try {
+    const settingsRow = {
+      id: 'default',
+      nama_sekolah: settings.namaSekolah,
+      sub_nama_sekolah: settings.subNamaSekolah,
+      npsn: settings.npsn,
+      nss: settings.nss,
+      akreditasi: settings.akreditasi,
+      alamat: settings.alamat,
+      desa_kelurahan: settings.desaKelurahan,
+      kecamatan: settings.kecamatan,
+      kabupaten_kota: settings.kabupatenKota,
+      provinsi: settings.provinsi,
+      kode_pos: settings.kodePos,
+      telepon: settings.telepon,
+      email: settings.email,
+      website: settings.website,
+      logo_url: settings.logoUrl,
+      nama_kepala_sekolah: settings.namaKepalaSekolah,
+      nip_kepala_sekolah: settings.nipKepalaSekolah,
+      naungan_yayasan: settings.naunganYayasan,
+      jam_masuk: settings.jamMasuk,
+      batas_terlambat: settings.batasTerlambat,
+      jam_pulang: settings.jamPulang,
+      batas_pulang: settings.batasPulang
+    };
+    await supabase.from('school_settings').upsert([settingsRow], { onConflict: 'id' });
+  } catch (e) {
+    console.warn('Error upserting settings to Supabase browser client:', e);
   }
 }

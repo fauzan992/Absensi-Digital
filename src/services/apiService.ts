@@ -1,6 +1,6 @@
 import { User, Student, Teacher, ClassRoom, AttendanceRecord, AttendanceStatus, UserRole, SchoolSettings, BKNote } from '../types';
 import { INITIAL_CLASSES, INITIAL_TEACHERS, INITIAL_STUDENTS, generateInitialAttendance, INITIAL_BK_NOTES } from '../data/mockDatabase';
-import { getStoredSupabaseConfig, pushAllFromBrowser, pullAllFromBrowser, getBrowserSupabaseClient, deleteTeacherFromBrowserSupabase, deleteClassFromBrowserSupabase, deleteStudentFromBrowserSupabase, upsertTeacherToBrowserSupabase } from './clientSupabase';
+import { getStoredSupabaseConfig, pushAllFromBrowser, pullAllFromBrowser, getBrowserSupabaseClient, deleteTeacherFromBrowserSupabase, deleteClassFromBrowserSupabase, deleteStudentFromBrowserSupabase, upsertTeacherToBrowserSupabase, upsertSettingsToBrowserSupabase } from './clientSupabase';
 import { syncClassesAndStudentsData } from '../utils/dataSync';
 
 // Safe JSON fetch wrapper that checks Content-Type to prevent HTML "Unexpected token T" errors on Vercel
@@ -203,6 +203,7 @@ export const apiService = {
     let settings: SchoolSettings;
     if (res.ok && res.data?.settings) {
       settings = res.data.settings;
+      saveLocalSettings(settings);
     } else {
       settings = getLocalSettings();
     }
@@ -223,10 +224,12 @@ export const apiService = {
     } else {
       const current = getLocalSettings();
       settings = { ...current, ...settingsData };
-      saveLocalSettings(settings);
     }
 
+    saveLocalSettings(settings);
     updateAppFavicon(settings.logoUrl);
+    await upsertSettingsToBrowserSupabase(settings);
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('school-settings-updated', { detail: settings }));
     }

@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { Student, ClassRoom, AttendanceRecord, BKNote, User } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Student, ClassRoom, AttendanceRecord, BKNote, User, SchoolSettings } from '../types';
 import { apiService } from '../services/apiService';
+import { SchoolLogo } from './SchoolLogo';
 import {
   Heart, AlertTriangle, ShieldAlert, CheckCircle2, Search, Filter, Plus,
   FileText, Mail, Calendar, UserCheck, Phone, RefreshCw, Printer, Edit, Trash2,
@@ -30,6 +31,36 @@ export const BKCounselingSection: React.FC<BKCounselingSectionProps> = ({
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
   const [riskFilter, setRiskFilter] = useState<'ALL' | 'HIGH' | 'MEDIUM' | 'LOW'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings | null>(() => {
+    if (typeof window !== 'undefined') {
+      const raw = localStorage.getItem('app_school_settings');
+      if (raw) {
+        try { return JSON.parse(raw); } catch { return null; }
+      }
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    apiService.getSettings().then(res => {
+      if (res.success && res.settings) {
+        setSchoolSettings(res.settings);
+      }
+    });
+
+    const handleSettingsEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<SchoolSettings>;
+      if (customEvent.detail) {
+        setSchoolSettings(customEvent.detail);
+      }
+    };
+
+    window.addEventListener('school-settings-updated', handleSettingsEvent);
+    return () => {
+      window.removeEventListener('school-settings-updated', handleSettingsEvent);
+    };
+  }, []);
 
   // Modals state
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -760,11 +791,27 @@ export const BKCounselingSection: React.FC<BKCounselingSectionProps> = ({
             {/* Right Printable Official Letter Live Preview */}
             <div className="bg-white p-8 rounded-2xl border-2 border-slate-300 shadow-md font-serif text-slate-900 text-xs space-y-4 printable-call-letter">
               {/* Kop Surat Sekolah */}
-              <div className="text-center border-b-2 border-slate-900 pb-3 space-y-1">
-                <h3 className="font-black text-sm uppercase tracking-wide">YAYASAN RA'IYATUL HUSNAN</h3>
-                <h2 className="font-black text-base uppercase text-emerald-900 tracking-wider">SMA ISLAM RA'IYATUL HUSNAN</h2>
-                <p className="text-[10px] font-sans text-slate-600">Jl. KH. Abdul Husnan No. 12, Jawa Timur • Telp: (0331) 482910</p>
-                <p className="text-[9px] font-sans text-emerald-700 font-bold uppercase tracking-widest">AKREDITASI A • TERINTEGRASI ABSENSI DIGITAL BARCODE NISN</p>
+              <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 gap-3">
+                <div className="shrink-0">
+                  <SchoolLogo size={64} logoUrl={schoolSettings?.logoUrl} schoolName={schoolSettings?.namaSekolah} subName={schoolSettings?.subNamaSekolah} />
+                </div>
+                <div className="text-center flex-1 space-y-0.5">
+                  <h3 className="font-black text-xs uppercase tracking-wide text-slate-800 font-sans">
+                    {schoolSettings?.naunganYayasan || "YAYASAN RA'IYATUL HUSNAN"}
+                  </h3>
+                  <h2 className="font-black text-base uppercase text-emerald-900 tracking-wider">
+                    {schoolSettings?.namaSekolah || "SMA ISLAM RA'IYATUL HUSNAN"}
+                  </h2>
+                  <p className="text-[10px] font-sans text-slate-600">
+                    {schoolSettings?.alamat || "Jl. Raya Wringin No. 45"}, {schoolSettings?.kecamatan || "Wringin"} - {schoolSettings?.kabupatenKota || "Bondowoso"} • Telp: {schoolSettings?.telepon || "(0332) 421xxx"}
+                  </p>
+                  <p className="text-[9px] font-sans text-emerald-700 font-bold uppercase tracking-widest">
+                    AKREDITASI {schoolSettings?.akreditasi || "B"} • NPSN: {schoolSettings?.npsn || "20521620"} • TERINTEGRASI ABSENSI DIGITAL BARCODE NISN
+                  </p>
+                </div>
+                <div className="shrink-0 w-16 invisible hidden sm:block">
+                  {/* Symmetrical balance spacer */}
+                </div>
               </div>
 
               {/* Header Surat */}
@@ -775,7 +822,7 @@ export const BKCounselingSection: React.FC<BKCounselingSectionProps> = ({
                   <p>Lamp: -</p>
                 </div>
                 <div className="text-right">
-                  <p>Jawa Timur, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  <p>{schoolSettings?.kabupatenKota || "Bondowoso"}, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                 </div>
               </div>
 
@@ -791,7 +838,7 @@ export const BKCounselingSection: React.FC<BKCounselingSectionProps> = ({
               <div className="space-y-2 leading-relaxed text-justify pt-2">
                 <p><em>Assalamu'alaikum Warahmatullahi Wabarakatuh,</em></p>
                 <p>
-                  Dengan hormat, sehubungan dengan upaya pembinaan kedisiplinan dan monitoring kehadiran siswa di SMA Islam Ra'iyatul Husnan, bersama ini kami mengharapkan kehadiran Bapak/Ibu Orang Tua / Wali murid pada:
+                  Dengan hormat, sehubungan dengan upaya pembinaan kedisiplinan dan monitoring kehadiran siswa di {schoolSettings?.namaSekolah || "SMA Islam Ra'iyatul Husnan"}, bersama ini kami mengharapkan kehadiran Bapak/Ibu Orang Tua / Wali murid pada:
                 </p>
 
                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 font-sans space-y-1 my-2">
@@ -812,10 +859,10 @@ export const BKCounselingSection: React.FC<BKCounselingSectionProps> = ({
               <div className="pt-6 grid grid-cols-2 text-center text-[11px]">
                 <div>
                   <p>Mengetahui,</p>
-                  <p className="font-bold">Kepala SMA Islam Ra'iyatul Husnan</p>
+                  <p className="font-bold">Kepala {schoolSettings?.namaSekolah || "SMA Islam Ra'iyatul Husnan"}</p>
                   <div className="h-14"></div>
-                  <p className="font-bold underline">Drs. H. Ahmad Masrukin, M.Pd</p>
-                  <p className="text-[10px]">NIP. 197003121995031001</p>
+                  <p className="font-bold underline">{schoolSettings?.namaKepalaSekolah || "Ust. Ahmad Fausan, S.Pd"}</p>
+                  <p className="text-[10px]">NIP. {schoolSettings?.nipKepalaSekolah || "198504122010011002"}</p>
                 </div>
 
                 <div>

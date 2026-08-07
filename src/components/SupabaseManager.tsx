@@ -96,6 +96,34 @@ CREATE TABLE IF NOT EXISTS attendance (
   check_out_status TEXT,
   check_out_by TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5. Table: school_settings
+CREATE TABLE IF NOT EXISTS school_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  nama_sekolah TEXT,
+  sub_nama_sekolah TEXT,
+  npsn TEXT,
+  nss TEXT,
+  akreditasi TEXT,
+  alamat TEXT,
+  desa_kelurahan TEXT,
+  kecamatan TEXT,
+  kabupaten_kota TEXT,
+  provinsi TEXT,
+  kode_pos TEXT,
+  telepon TEXT,
+  email TEXT,
+  website TEXT,
+  logo_url TEXT,
+  nama_kepala_sekolah TEXT,
+  nip_kepala_sekolah TEXT,
+  naungan_yayasan TEXT,
+  jam_masuk TEXT,
+  batas_terlambat TEXT,
+  jam_pulang TEXT,
+  batas_pulang TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );`;
 
 export const SupabaseManager: React.FC<SupabaseManagerProps> = ({ onRefreshMasterData }) => {

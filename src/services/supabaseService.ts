@@ -223,30 +223,54 @@ CREATE TABLE IF NOT EXISTS attendance (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 5. Storage Bucket Setup for Student Photos
-INSERT INTO storage.buckets (id, name, public) 
-VALUES ('student-photos', 'student-photos', true) 
-ON CONFLICT (id) DO NOTHING;
+-- 5. Table: school_settings
+CREATE TABLE IF NOT EXISTS school_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  nama_sekolah TEXT,
+  sub_nama_sekolah TEXT,
+  npsn TEXT,
+  nss TEXT,
+  akreditasi TEXT,
+  alamat TEXT,
+  desa_kelurahan TEXT,
+  kecamatan TEXT,
+  kabupaten_kota TEXT,
+  provinsi TEXT,
+  kode_pos TEXT,
+  telepon TEXT,
+  email TEXT,
+  website TEXT,
+  logo_url TEXT,
+  nama_kepala_sekolah TEXT,
+  nip_kepala_sekolah TEXT,
+  naungan_yayasan TEXT,
+  jam_masuk TEXT,
+  batas_terlambat TEXT,
+  jam_pulang TEXT,
+  batas_pulang TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 -- Enable Row Level Security (RLS) or Allow Public Anon Access
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE teachers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
+ALTER TABLE school_settings ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if any
 DROP POLICY IF EXISTS "Allow public anon access to classes" ON classes;
 DROP POLICY IF EXISTS "Allow public anon access to teachers" ON teachers;
 DROP POLICY IF EXISTS "Allow public anon access to students" ON students;
 DROP POLICY IF EXISTS "Allow public anon access to attendance" ON attendance;
-DROP POLICY IF EXISTS "Public Storage Read Access" ON storage.objects;
-DROP POLICY IF EXISTS "Public Storage Upload Access" ON storage.objects;
+DROP POLICY IF EXISTS "Allow public anon access to school_settings" ON school_settings;
 
 -- Create Policies for Anon Read/Write Access
 CREATE POLICY "Allow public anon access to classes" ON classes FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public anon access to teachers" ON teachers FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public anon access to students" ON students FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public anon access to attendance" ON attendance FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public anon access to school_settings" ON school_settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public Storage Read Access" ON storage.objects FOR SELECT USING (bucket_id = 'student-photos');
 CREATE POLICY "Public Storage Upload Access" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'student-photos');
 `;
