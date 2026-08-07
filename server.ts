@@ -1336,8 +1336,20 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, '0.0.0.0', async () => {
     console.log(`[SMA Islam Ra'iyatul Husnan Server] running on http://localhost:${PORT}`);
+    try {
+      const initSync = await pullAllFromSupabase();
+      if (initSync && initSync.success && initSync.data) {
+        if (initSync.data.classes.length > 0) classesDB = initSync.data.classes;
+        if (initSync.data.teachers.length > 0) teachersDB = initSync.data.teachers;
+        if (initSync.data.students.length > 0) studentsDB = initSync.data.students;
+        if (initSync.data.attendance.length > 0) attendanceDB = initSync.data.attendance;
+        console.log(`[Supabase Boot Sync] Auto-synced ${studentsDB.length} students, ${classesDB.length} classes from Supabase.`);
+      }
+    } catch (err) {
+      console.warn('[Supabase Boot Sync] Warning during startup pull:', err);
+    }
   });
 }
 

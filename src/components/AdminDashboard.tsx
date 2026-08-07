@@ -93,6 +93,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Search in Master Tables
   const [masterSearch, setMasterSearch] = useState('');
   const [masterClassFilter, setMasterClassFilter] = useState('all');
+  const [studentCurrentPage, setStudentCurrentPage] = useState(1);
+
+  React.useEffect(() => {
+    setStudentCurrentPage(1);
+  }, [masterSearch, masterClassFilter]);
 
   // Student Form Modal State
   const [showStudentModal, setShowStudentModal] = useState(false);
@@ -758,7 +763,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </div>
 
               {/* SUBTAB: DATA SISWA */}
-              {masterSubTab === 'students' && (
+              {masterSubTab === 'students' && (() => {
+                const STUDENT_PAGE_SIZE = 30;
+                const totalStudentPages = Math.ceil(filteredStudents.length / STUDENT_PAGE_SIZE) || 1;
+                const validStudentPage = Math.min(Math.max(1, studentCurrentPage), totalStudentPages);
+                const paginatedStudents = filteredStudents.slice((validStudentPage - 1) * STUDENT_PAGE_SIZE, validStudentPage * STUDENT_PAGE_SIZE);
+
+                return (
                 <div>
                   <div className="flex flex-wrap gap-3 mb-4 items-center justify-between">
                     <div className="flex items-center gap-3 flex-1 min-w-[200px]">
@@ -836,12 +847,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <th className="p-3 w-8">
                             <input
                               type="checkbox"
-                              checked={filteredStudents.length > 0 && filteredStudents.every(s => selectedStudentIdsTable.includes(s.id))}
+                              checked={paginatedStudents.length > 0 && paginatedStudents.every(s => selectedStudentIdsTable.includes(s.id))}
                               onChange={(e) => {
                                 if (e.target.checked) {
-                                  setSelectedStudentIdsTable(filteredStudents.map(s => s.id));
+                                  const newIds = new Set([...selectedStudentIdsTable, ...paginatedStudents.map(s => s.id)]);
+                                  setSelectedStudentIdsTable(Array.from(newIds));
                                 } else {
-                                  setSelectedStudentIdsTable([]);
+                                  const pageIds = new Set(paginatedStudents.map(s => s.id));
+                                  setSelectedStudentIdsTable(prev => prev.filter(id => !pageIds.has(id)));
                                 }
                               }}
                               className="w-4 h-4 text-emerald-600 rounded border-slate-300 cursor-pointer"
@@ -858,79 +871,140 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {filteredStudents.map((st, idx) => {
-                          const isRowSelected = selectedStudentIdsTable.includes(st.id);
-                          return (
-                            <tr key={`${st.id}-${idx}`} className={`hover:bg-slate-50/80 transition-colors ${isRowSelected ? 'bg-emerald-50/50' : ''}`}>
-                              <td className="p-3">
-                                <input
-                                  type="checkbox"
-                                  checked={isRowSelected}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedStudentIdsTable(prev => [...prev, st.id]);
-                                    } else {
-                                      setSelectedStudentIdsTable(prev => prev.filter(id => id !== st.id));
-                                    }
-                                  }}
-                                  className="w-4 h-4 text-emerald-600 rounded border-slate-300 cursor-pointer"
-                                />
-                              </td>
-                              <td className="p-3 font-semibold text-slate-400">{idx + 1}</td>
-                              <td className="p-3">
-                                {st.photoUrl ? (
-                                  <img
-                                    src={st.photoUrl}
-                                    alt={st.name}
-                                    className="w-8 h-10 object-cover rounded-md border border-slate-200 shadow-2xs"
+                        {paginatedStudents.length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="p-8 text-center text-slate-400">
+                              Tidak ada data siswa yang ditemukan.
+                            </td>
+                          </tr>
+                        ) : (
+                          paginatedStudents.map((st, idx) => {
+                            const isRowSelected = selectedStudentIdsTable.includes(st.id);
+                            const rowNumber = (validStudentPage - 1) * STUDENT_PAGE_SIZE + idx + 1;
+                            return (
+                              <tr key={`${st.id}-${idx}`} className={`hover:bg-slate-50/80 transition-colors ${isRowSelected ? 'bg-emerald-50/50' : ''}`}>
+                                <td className="p-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={isRowSelected}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedStudentIdsTable(prev => [...prev, st.id]);
+                                      } else {
+                                        setSelectedStudentIdsTable(prev => prev.filter(id => id !== st.id));
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-emerald-600 rounded border-slate-300 cursor-pointer"
                                   />
-                                ) : (
-                                  <div className="w-8 h-10 bg-slate-100 border border-slate-200 rounded-md flex flex-col items-center justify-center text-slate-400">
-                                    <Users className="w-4 h-4" />
-                                    <span className="text-[8px] font-bold">3x4</span>
+                                </td>
+                                <td className="p-3 font-semibold text-slate-400">{rowNumber}</td>
+                                <td className="p-3">
+                                  {st.photoUrl ? (
+                                    <img
+                                      src={st.photoUrl}
+                                      alt={st.name}
+                                      className="w-8 h-10 object-cover rounded-md border border-slate-200 shadow-2xs"
+                                    />
+                                  ) : (
+                                    <div className="w-8 h-10 bg-slate-100 border border-slate-200 rounded-md flex flex-col items-center justify-center text-slate-400">
+                                      <Users className="w-4 h-4" />
+                                      <span className="text-[8px] font-bold">3x4</span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="p-3 font-mono font-bold text-emerald-800">
+                                  <div className="flex items-center gap-2">
+                                    <span>{st.nisn}</span>
+                                    <button
+                                      onClick={() => setSelectedStudentBarcode(st)}
+                                      title="Lihat / Cetak Barcode NISN"
+                                      className="p-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 cursor-pointer"
+                                    >
+                                      <Barcode className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
-                                )}
-                              </td>
-                              <td className="p-3 font-mono font-bold text-emerald-800">
-                                <div className="flex items-center gap-2">
-                                  <span>{st.nisn}</span>
+                                </td>
+                                <td className="p-3 font-bold text-slate-900">{st.name}</td>
+                                <td className="p-3">{st.gender}</td>
+                                <td className="p-3 font-semibold text-slate-700">{st.className}</td>
+                                <td className="p-3">{st.parentName} ({st.parentPhone})</td>
+                                <td className="p-3 text-right space-x-1">
                                   <button
-                                    onClick={() => setSelectedStudentBarcode(st)}
-                                    title="Lihat / Cetak Barcode NISN"
-                                    className="p-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded border border-emerald-200 cursor-pointer"
+                                    onClick={() => handleOpenEditStudent(st)}
+                                    className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md cursor-pointer"
+                                    title="Edit Siswa"
                                   >
-                                    <Barcode className="w-3.5 h-3.5" />
+                                    <Edit className="w-3.5 h-3.5" />
                                   </button>
-                                </div>
-                              </td>
-                              <td className="p-3 font-bold text-slate-900">{st.name}</td>
-                              <td className="p-3">{st.gender}</td>
-                              <td className="p-3 font-semibold text-slate-700">{st.className}</td>
-                              <td className="p-3">{st.parentName} ({st.parentPhone})</td>
-                              <td className="p-3 text-right space-x-1">
-                                <button
-                                  onClick={() => handleOpenEditStudent(st)}
-                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md cursor-pointer"
-                                  title="Edit Siswa"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteStudent(st)}
-                                  className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
-                                  title="Hapus Siswa"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                                  <button
+                                    onClick={() => handleDeleteStudent(st)}
+                                    className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md cursor-pointer"
+                                    title="Hapus Siswa"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Pagination Bar for Data Siswa */}
+                  {filteredStudents.length > 0 && (
+                    <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 border border-slate-200 rounded-2xl p-3 text-xs text-slate-600">
+                      <div className="font-medium">
+                        Menampilkan <span className="font-bold text-slate-900">{(validStudentPage - 1) * STUDENT_PAGE_SIZE + 1}</span> - <span className="font-bold text-slate-900">{Math.min(validStudentPage * STUDENT_PAGE_SIZE, filteredStudents.length)}</span> dari <span className="font-bold text-slate-900">{filteredStudents.length}</span> siswa (Maks 30/halaman)
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          disabled={validStudentPage === 1}
+                          onClick={() => setStudentCurrentPage(1)}
+                          className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-all cursor-pointer"
+                          title="Halaman Pertama"
+                        >
+                          &laquo;
+                        </button>
+                        <button
+                          type="button"
+                          disabled={validStudentPage === 1}
+                          onClick={() => setStudentCurrentPage(p => Math.max(1, p - 1))}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          &lsaquo; Sebelumnya
+                        </button>
+
+                        <div className="px-3 py-1.5 bg-emerald-100 text-emerald-800 font-extrabold rounded-lg border border-emerald-200">
+                          Halaman {validStudentPage} dari {totalStudentPages}
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={validStudentPage >= totalStudentPages}
+                          onClick={() => setStudentCurrentPage(p => Math.min(totalStudentPages, p + 1))}
+                          className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          Selanjutnya &rsaquo;
+                        </button>
+                        <button
+                          type="button"
+                          disabled={validStudentPage >= totalStudentPages}
+                          onClick={() => setStudentCurrentPage(totalStudentPages)}
+                          className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 transition-all cursor-pointer"
+                          title="Halaman Terakhir"
+                        >
+                          &raquo;
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+                );
+              })()}
 
               {/* SUBTAB: DATA GURU */}
               {masterSubTab === 'teachers' && (

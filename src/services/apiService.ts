@@ -157,6 +157,22 @@ async function triggerAutoSupabaseSync() {
   }
 }
 
+// Auto-sync Supabase Credentials from Server to Client localStorage
+export async function syncSupabaseCredentialsWithServer() {
+  try {
+    const res = await safeFetchJson<{ url?: string; anonKey?: string; autoSync?: boolean }>('/api/supabase/config');
+    if (res.ok && res.data?.url && res.data?.anonKey) {
+      localStorage.setItem('app_supabase_url', res.data.url);
+      localStorage.setItem('app_supabase_anon_key', res.data.anonKey);
+      if (res.data.autoSync !== undefined) {
+        localStorage.setItem('app_supabase_auto_sync', res.data.autoSync ? 'true' : 'false');
+      }
+    }
+  } catch (err) {
+    console.warn('Background Supabase config sync:', err);
+  }
+}
+
 // Dynamic Favicon Helper
 export function updateAppFavicon(logoUrl?: string) {
   if (typeof document === 'undefined') return;
@@ -300,9 +316,16 @@ export const apiService = {
 
   // Master Data
   async getMasterData(): Promise<{ classes: ClassRoom[]; teachers: Teacher[]; students: Student[] }> {
+    // Automatically ensure client has active Supabase credentials from server
+    syncSupabaseCredentialsWithServer().catch(() => {});
+
     const res = await safeFetchJson<{ classes: ClassRoom[]; teachers: Teacher[]; students: Student[] }>('/api/master/data');
     if (res.ok && res.data) {
       const synced = syncClassesAndStudentsData(res.data.classes || [], res.data.students || [], res.data.teachers || []);
+      // Sync local storage cache for offline / fallback
+      saveLocalClasses(synced.classes);
+      saveLocalStudents(synced.students);
+      saveLocalTeachers(synced.teachers);
       return synced;
     }
 

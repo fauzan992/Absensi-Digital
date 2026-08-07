@@ -15,19 +15,22 @@ export interface ClientSupabaseConfig {
   errorMessage?: string;
 }
 
+export const DEFAULT_SUPABASE_URL = 'https://zxnkiqupojwydazkurfv.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_PvMiB0Or-lpYWjVSaa0FeQ_a33a0ISz';
+
 // Get saved config from localStorage
 export function getStoredSupabaseConfig(): ClientSupabaseConfig {
-  const url = localStorage.getItem(STORAGE_KEY_URL) || '';
-  const anonKey = localStorage.getItem(STORAGE_KEY_KEY) || '';
+  const url = localStorage.getItem(STORAGE_KEY_URL) || DEFAULT_SUPABASE_URL;
+  const anonKey = localStorage.getItem(STORAGE_KEY_KEY) || DEFAULT_SUPABASE_ANON_KEY;
   const autoSync = localStorage.getItem(STORAGE_KEY_AUTO) !== 'false';
   const lastSyncTime = localStorage.getItem(STORAGE_KEY_LAST_SYNC) || undefined;
 
   if (!url || !anonKey) {
     return {
-      url: '',
-      anonKey: '',
+      url: DEFAULT_SUPABASE_URL,
+      anonKey: DEFAULT_SUPABASE_ANON_KEY,
       autoSync: true,
-      status: 'unconfigured'
+      status: 'connected'
     };
   }
 
@@ -49,8 +52,8 @@ export function setStoredSupabaseConfig(url: string, anonKey: string, autoSync: 
 
 // Get Supabase browser client
 export function getBrowserSupabaseClient(url?: string, anonKey?: string): SupabaseClient | null {
-  const targetUrl = url || localStorage.getItem(STORAGE_KEY_URL) || '';
-  const targetKey = anonKey || localStorage.getItem(STORAGE_KEY_KEY) || '';
+  const targetUrl = url || localStorage.getItem(STORAGE_KEY_URL) || DEFAULT_SUPABASE_URL;
+  const targetKey = anonKey || localStorage.getItem(STORAGE_KEY_KEY) || DEFAULT_SUPABASE_ANON_KEY;
 
   if (!targetUrl || !targetKey) return null;
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { User, SchoolSettings } from '../types';
 import { apiService } from '../services/apiService';
-import { Shield, GraduationCap, Heart, Key, Lock, UserCheck, AlertCircle, Sparkles, Users } from 'lucide-react';
+import { Heart, Key, Lock, UserCheck, AlertCircle, Users } from 'lucide-react';
 import { SchoolLogo } from './SchoolLogo';
 
 interface LoginModalProps {
@@ -12,8 +12,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   // 2 main form types: 'staff' (Guru/Admin) and 'wali' (Wali Murid)
   const [formType, setFormType] = useState<'staff' | 'wali'>('staff');
   
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [settings, setSettings] = useState<SchoolSettings | null>(null);
@@ -41,13 +41,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
   const handleFormTypeChange = (type: 'staff' | 'wali') => {
     setFormType(type);
     setErrorMsg(null);
-    if (type === 'staff') {
-      setUsername('admin');
-      setPassword('admin123');
-    } else {
-      setUsername('0061234501');
-      setPassword('123');
-    }
+    setUsername('');
+    setPassword('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,16 +61,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
     } else {
       setErrorMsg(res.error || 'Login gagal. Periksa kembali username/NISN dan password Anda.');
     }
-  };
-
-  const handleQuickFill = (u: string, p: string, isWali = false) => {
-    if (isWali) {
-      setFormType('wali');
-    } else {
-      setFormType('staff');
-    }
-    setUsername(u);
-    setPassword(p);
   };
 
   return (
@@ -122,39 +107,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ onLoginSuccess }) => {
               <Heart className="w-4 h-4 text-rose-300" />
               <span>Wali Murid</span>
             </button>
-          </div>
-
-          {/* Quick Demo Credentials Helper */}
-          <div className="mb-5 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-            <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1 mb-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600 inline" /> Kredensial Akses Cepat (Demo):
-            </span>
-            {formType === 'staff' ? (
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('admin', 'admin123')}
-                  className="text-[10px] font-bold px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-amber-900 cursor-pointer flex items-center gap-1 shadow-2xs"
-                >
-                  <Shield className="w-3 h-3 text-amber-700" /> Admin (admin / admin123)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickFill('ahmad', 'guru123')}
-                  className="text-[10px] font-bold px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-amber-900 cursor-pointer flex items-center gap-1 shadow-2xs"
-                >
-                  <GraduationCap className="w-3 h-3 text-amber-700" /> Guru (ahmad / guru123)
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleQuickFill('0061234501', '', true)}
-                className="text-[10px] font-bold px-2.5 py-1 bg-white hover:bg-amber-100 border border-amber-300 rounded-lg text-amber-900 cursor-pointer flex items-center gap-1 shadow-2xs"
-              >
-                <Heart className="w-3 h-3 text-rose-600" /> Wali Murid (Coba NISN: 0061234501)
-              </button>
-            )}
           </div>
 
           {/* FORM: GURU & ADMIN */}
