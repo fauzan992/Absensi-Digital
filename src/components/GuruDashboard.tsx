@@ -8,10 +8,11 @@ import { DismissalAttendanceSection } from './DismissalAttendanceSection';
 import { MonthlyAttendanceReport } from './MonthlyAttendanceReport';
 import { MainDashboardOverview } from './MainDashboardOverview';
 import { TeacherClassAdminSection } from './TeacherClassAdminSection';
+import { TeacherProfileModal } from './TeacherProfileModal';
 import { BKNote } from '../types';
 import {
   UserCheck, Barcode, Calendar, FileSpreadsheet, CheckCircle2,
-  XCircle, Clock, AlertTriangle, ArrowDownToLine, Search, Save, Check, RefreshCw, DoorOpen, Heart, BookOpen
+  XCircle, Clock, AlertTriangle, ArrowDownToLine, Search, Save, Check, RefreshCw, DoorOpen, Heart, BookOpen, Key
 } from 'lucide-react';
 
 interface GuruDashboardProps {
@@ -24,6 +25,7 @@ interface GuruDashboardProps {
   onRefreshData: () => void;
   externalActiveTab?: string;
   onTabChange?: (tab: 'dashboard' | 'master' | 'teacherAdmin' | 'scan' | 'reports' | 'import' | 'settings') => void;
+  onUserUpdate?: (updatedUser: User) => void;
 }
 
 export const GuruDashboard: React.FC<GuruDashboardProps> = ({
@@ -35,13 +37,15 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   bkNotes = [],
   onRefreshData,
   externalActiveTab,
-  onTabChange
+  onTabChange,
+  onUserUpdate
 }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'scan' | 'checkout' | 'today' | 'reports' | 'teacherAdmin'>(
     externalActiveTab === 'teacherAdmin' ? 'teacherAdmin' : ((externalActiveTab as any) || 'dashboard')
   );
   const [reportsSubTab, setReportsSubTab] = useState<'daily' | 'monthly'>('daily');
   const [showScannerModal, setShowScannerModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedStudentBarcode, setSelectedStudentBarcode] = useState<Student | null>(null);
 
   useEffect(() => {
@@ -179,7 +183,14 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setShowProfileModal(true)}
+              className="flex items-center gap-2 px-4 py-3 bg-teal-800/90 hover:bg-teal-700 text-white font-extrabold text-xs rounded-2xl border border-teal-500/50 shadow-md transition-transform hover:scale-105 cursor-pointer"
+              title="Edit Nama Lengkap, Username, dan Password Guru"
+            >
+              <Key className="w-4 h-4 text-amber-300" /> Edit Akun & Password
+            </button>
             <button
               onClick={() => setActiveTab('checkout')}
               className="flex items-center gap-2 px-4 py-3 bg-emerald-950/90 hover:bg-emerald-950 text-amber-300 font-extrabold text-xs rounded-2xl border border-amber-400/40 shadow-md transition-transform hover:scale-105 cursor-pointer"
@@ -661,6 +672,20 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
           recordedByRole="guru"
           recordedByName={user.name}
           studentsList={classStudents}
+        />
+      )}
+
+      {/* Teacher Profile Edit Modal */}
+      {showProfileModal && (
+        <TeacherProfileModal
+          user={user}
+          teachers={teachers}
+          onClose={() => setShowProfileModal(false)}
+          onSuccess={(updatedUser) => {
+            setShowProfileModal(false);
+            if (onUserUpdate) onUserUpdate(updatedUser);
+            onRefreshData();
+          }}
         />
       )}
     </div>

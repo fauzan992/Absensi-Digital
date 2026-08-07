@@ -157,7 +157,7 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({
                   {user.name}
                 </span>
                 <span className="text-[9px] font-bold text-amber-300 uppercase tracking-widest block">
-                  {user.role === 'admin' ? 'Administrator' : user.role === 'guru' ? 'Guru' : 'Wali Murid'}
+                  {user.role === 'admin' ? 'Administrator' : user.role === 'bk' ? 'Guru BK' : user.role === 'guru' ? 'Guru' : 'Wali Murid'}
                 </span>
               </div>
               <button

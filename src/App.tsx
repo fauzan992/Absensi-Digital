@@ -160,6 +160,7 @@ export default function App() {
                   bkNotes={bkNotes}
                   onRefreshData={loadAppData}
                   externalActiveTab={activeTab}
+                  onUserUpdate={(updated) => setUser(updated)}
                 />
               )}
 
@@ -167,11 +168,13 @@ export default function App() {
                 <BKDashboard
                   user={user}
                   students={students}
+                  teachers={teachers}
                   classes={classes}
                   attendanceRecords={attendanceRecords}
                   bkNotes={bkNotes}
                   onRefreshData={loadAppData}
                   externalActiveTab={activeTab}
+                  onUserUpdate={(updated) => setUser(updated)}
                 />
               )}
 

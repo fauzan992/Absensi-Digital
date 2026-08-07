@@ -155,8 +155,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* 1.5. ANALISIS KEDISIPLINAN (ADMIN ONLY) */}
-          {user.role === 'admin' && (
+          {/* 1.5. ANALISIS KEDISIPLINAN (ADMIN & BK) */}
+          {(user.role === 'admin' || user.role === 'bk') && (
             <button
               onClick={() => handleNavClick('discipline')}
               className={`w-full flex items-center gap-3 p-3 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
@@ -171,8 +171,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {/* 1.7. ADMINISTRASI KELAS & KBM (KHUSUS GURU) */}
-          {(user.role === 'guru' || user.role === 'admin') && (
+          {/* 1.7. ADMINISTRASI KELAS & KBM (GURU, BK & ADMIN) */}
+          {(user.role === 'guru' || user.role === 'admin' || user.role === 'bk') && (
             <button
               onClick={() => handleNavClick('teacherAdmin')}
               className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
@@ -298,7 +298,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <div className="flex-1 overflow-hidden">
                 <p className="text-xs font-extrabold truncate text-white">{user.name}</p>
                 <p className="text-[10px] text-amber-300 font-semibold uppercase tracking-wider truncate">
-                  {user.role === 'admin' ? 'System Administrator' : user.role === 'guru' ? 'Guru / Wali Kelas' : 'Wali Murid'}
+                  {user.role === 'admin' ? 'System Administrator' : user.role === 'bk' ? 'Guru BK / Konselor' : user.role === 'guru' ? 'Guru / Wali Kelas' : 'Wali Murid'}
                 </p>
               </div>
             )}
