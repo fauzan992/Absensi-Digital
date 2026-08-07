@@ -52,7 +52,7 @@ export const MonthlyAttendanceReport: React.FC<MonthlyAttendanceReportProps> = (
   const filteredStudents = useMemo(() => {
     return students.filter(student => {
       return selectedClassId === 'all' || student.classId === selectedClassId;
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
   }, [students, selectedClassId]);
 
   // Create fast map of attendance records: key = `${nisn}_${YYYY-MM-DD}`

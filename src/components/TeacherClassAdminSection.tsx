@@ -150,7 +150,7 @@ export const TeacherClassAdminSection: React.FC<TeacherClassAdminSectionProps> =
   const classStudents = students.filter(s =>
     s.classId === selectedClassId ||
     (currentClassObj && s.className && s.className.trim().toLowerCase() === currentClassObj.name.trim().toLowerCase())
-  );
+  ).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 
   // Today existing records for this class
   const classRecordsToday = attendanceRecords.filter(a => a.classId === selectedClassId && a.date === kbmDate);

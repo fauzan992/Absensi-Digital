@@ -31,7 +31,8 @@ export const DismissalAttendanceSection: React.FC<DismissalAttendanceSectionProp
 
   const todayStr = new Date().toISOString().split('T')[0];
   const selectedClass = classes.find(c => c.id === selectedClassId);
-  const classStudents = students.filter(s => s.classId === selectedClassId);
+  const classStudents = students.filter(s => s.classId === selectedClassId || (selectedClass && s.className && s.className.trim().toLowerCase() === selectedClass.name.trim().toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 
   // Today's attendance records for the selected class
   const todayClassRecords = attendanceRecords.filter(a => a.classId === selectedClassId && a.date === todayStr);

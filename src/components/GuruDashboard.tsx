@@ -68,7 +68,7 @@ export const GuruDashboard: React.FC<GuruDashboardProps> = ({
   const classStudents = students.filter(s =>
     s.classId === teacherClassId ||
     (currentClass && s.className && s.className.trim().toLowerCase() === currentClass.name.trim().toLowerCase())
-  );
+  ).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayRecords = attendanceRecords.filter(a => a.classId === teacherClassId && a.date === todayStr);

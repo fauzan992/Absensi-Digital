@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Student, ClassRoom } from '../types';
+import { Student, ClassRoom, SchoolSettings } from '../types';
 import { Printer, CheckSquare, Square, Filter, Search, Settings, CreditCard, X, QrCode } from 'lucide-react';
 import { SchoolLogo } from './SchoolLogo';
+import { apiService } from '../services/apiService';
 
 interface BulkStudentCardPrinterProps {
   students: Student[];
@@ -28,9 +29,36 @@ export const BulkStudentCardPrinter: React.FC<BulkStudentCardPrinterProps> = ({
   });
 
   // Card Design Config
+  const [schoolSettings, setSchoolSettings] = useState<SchoolSettings | null>(null);
   const [schoolName, setSchoolName] = useState('SMA ISLAM RA\'IYATUL HUSNAN');
   const [academicYear, setAcademicYear] = useState('2025/2026');
   const [showCutLines, setShowCutLines] = useState<boolean>(true);
+
+  useEffect(() => {
+    apiService.getSettings().then(res => {
+      if (res.success && res.settings) {
+        setSchoolSettings(res.settings);
+        if (res.settings.namaSekolah) {
+          setSchoolName(res.settings.namaSekolah);
+        }
+      }
+    });
+
+    const handleSettingsEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<SchoolSettings>;
+      if (customEvent.detail) {
+        setSchoolSettings(customEvent.detail);
+        if (customEvent.detail.namaSekolah) {
+          setSchoolName(customEvent.detail.namaSekolah);
+        }
+      }
+    };
+
+    window.addEventListener('school-settings-updated', handleSettingsEvent);
+    return () => {
+      window.removeEventListener('school-settings-updated', handleSettingsEvent);
+    };
+  }, []);
 
   // Filter students list based on criteria
   const filteredStudents = students.filter(s => {
@@ -39,10 +67,11 @@ export const BulkStudentCardPrinter: React.FC<BulkStudentCardPrinterProps> = ({
                         s.nisn.includes(searchQuery) ||
                         s.className.toLowerCase().includes(searchQuery.toLowerCase());
     return matchClass && matchSearch;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 
   // Get array of selected Student objects
-  const selectedStudents = students.filter(s => selectedStudentIds.includes(s.id));
+  const selectedStudents = students.filter(s => selectedStudentIds.includes(s.id))
+    .sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 
   // Toggle selection
   const handleToggleSelectAll = () => {
@@ -372,7 +401,7 @@ export const BulkStudentCardPrinter: React.FC<BulkStudentCardPrinterProps> = ({
                       {/* Header Section */}
                       <div className="flex items-center justify-between border-b border-emerald-500/40 pb-2 relative z-10">
                         <div className="flex items-center gap-2 min-w-0">
-                          <SchoolLogo size={32} />
+                          <SchoolLogo size={32} logoUrl={schoolSettings?.logoUrl} />
                           <div className="min-w-0 flex-1">
                             <h4 className="font-black text-[11px] leading-tight tracking-wide text-amber-300 uppercase truncate">
                               {schoolName}

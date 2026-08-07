@@ -342,6 +342,7 @@ export async function pushAllToSupabase(data: {
   teachers: Teacher[];
   students: Student[];
   attendance: AttendanceRecord[];
+  settings?: SchoolSettings;
 }): Promise<{ success: boolean; message: string; details?: any }> {
   const supabase = getSupabaseClient();
   if (!supabase) {
@@ -444,6 +445,41 @@ export async function pushAllToSupabase(data: {
       if (errAtt) throw new Error(`Tabel attendance: ${errAtt.message}`);
     }
 
+    // 5. School Settings
+    if (data.settings) {
+      const s = data.settings;
+      const settingsRow = {
+        id: 'default',
+        nama_sekolah: s.namaSekolah,
+        sub_nama_sekolah: s.subNamaSekolah,
+        npsn: s.npsn,
+        nss: s.nss,
+        akreditasi: s.akreditasi,
+        alamat: s.alamat,
+        desa_kelurahan: s.desaKelurahan,
+        kecamatan: s.kecamatan,
+        kabupaten_kota: s.kabupatenKota,
+        provinsi: s.provinsi,
+        kode_pos: s.kodePos,
+        telepon: s.telepon,
+        email: s.email,
+        website: s.website,
+        logo_url: s.logoUrl,
+        nama_kepala_sekolah: s.namaKepalaSekolah,
+        nip_kepala_sekolah: s.nipKepalaSekolah,
+        naungan_yayasan: s.naunganYayasan,
+        jam_masuk: s.jamMasuk,
+        batas_terlambat: s.batasTerlambat,
+        jam_pulang: s.jamPulang,
+        batas_pulang: s.batasPulang
+      };
+      try {
+        await supabase.from('school_settings').upsert([settingsRow], { onConflict: 'id' });
+      } catch (e) {
+        console.warn('Failed to upsert school_settings in pushAllToSupabase:', e);
+      }
+    }
+
     saveSupabaseConfig({
       lastSyncTime: new Date().toISOString(),
       status: 'connected',
@@ -452,7 +488,7 @@ export async function pushAllToSupabase(data: {
 
     return {
       success: true,
-      message: `Berhasil mengekspor data ke Supabase: ${data.students.length} Siswa, ${data.teachers.length} Guru, ${data.classes.length} Kelas, ${data.attendance.length} Absensi.`
+      message: `Berhasil mengekspor data ke Supabase: ${data.students.length} Siswa, ${data.teachers.length} Guru, ${data.classes.length} Kelas, ${data.attendance.length} Absensi, Identitas Sekolah.`
     };
   } catch (err: any) {
     console.error('Error pushAllToSupabase:', err);
@@ -470,6 +506,7 @@ export async function pullAllFromSupabase(): Promise<{
     teachers: Teacher[];
     students: Student[];
     attendance: AttendanceRecord[];
+    settings?: SchoolSettings;
   };
 }> {
   const supabase = getSupabaseClient();
@@ -478,11 +515,12 @@ export async function pullAllFromSupabase(): Promise<{
   }
 
   try {
-    const [resClasses, resTeachers, resStudents, resAtt] = await Promise.all([
+    const [resClasses, resTeachers, resStudents, resAtt, resSettings] = await Promise.all([
       supabase.from('classes').select('*'),
       supabase.from('teachers').select('*'),
       supabase.from('students').select('*'),
-      supabase.from('attendance').select('*')
+      supabase.from('attendance').select('*'),
+      supabase.from('school_settings').select('*').maybeSingle()
     ]);
 
     if (resClasses.error) throw new Error(`Classes: ${resClasses.error.message}`);
@@ -547,7 +585,41 @@ export async function pullAllFromSupabase(): Promise<{
       checkOutBy: a.check_out_by
     }));
 
-    const fetchedData = { classes, teachers, students, attendance };
+    let settings: SchoolSettings | undefined = undefined;
+    if (resSettings.data) {
+      const st = resSettings.data;
+      settings = {
+        namaSekolah: st.nama_sekolah || "SMA ISLAM RA'IYATUL HUSNAN",
+        subNamaSekolah: st.sub_nama_sekolah || "WRINGIN BONDOWOSO",
+        npsn: st.npsn || "20521620",
+        nss: st.nss || "302052202010",
+        akreditasi: st.akreditasi || "B",
+        alamat: st.alamat || "Jl. Raya Wringin No. 45",
+        desaKelurahan: st.desa_kelurahan || "Wringin",
+        kecamatan: st.kecamatan || "Wringin",
+        kabupatenKota: st.kabupaten_kota || "Bondowoso",
+        provinsi: st.provinsi || "Jawa Timur",
+        kodePos: st.kode_pos || "68252",
+        telepon: st.telepon || "(0332) 421xxx / 081234567890",
+        email: st.email || "smaislam.raiyatulhusnan@gmail.sch.id",
+        website: st.website || "www.smaislam-raiyatulhusnan.sch.id",
+        logoUrl: st.logo_url || "/school-logo.jpg",
+        namaKepalaSekolah: st.nama_kepala_sekolah || "Ust. Ahmad Fausan, S.Pd",
+        nipKepalaSekolah: st.nip_kepala_sekolah || "198504122010011002",
+        naunganYayasan: st.naungan_yayasan || "Yayasan Ra'iyatul Husnan Wringin",
+        jamMasuk: st.jam_masuk || '07:00',
+        batasTerlambat: st.batas_terlambat || '07:15',
+        jamPulang: st.jam_pulang || '14:00',
+        batasPulang: st.batas_pulang || '16:00',
+        hariLiburRutin: [0, 6],
+        hariLiburKhusus: savedBackup?.settings?.hariLiburKhusus || [
+          { id: 'hol-1', date: '2026-08-17', name: 'HUT Kemerdekaan RI ke-81', isNational: true }
+        ],
+        allowAbsenLibur: savedBackup?.settings?.allowAbsenLibur || false
+      };
+    }
+
+    const fetchedData = { classes, teachers, students, attendance, ...(settings ? { settings } : {}) };
     saveLocalDBBackup(fetchedData);
 
     saveSupabaseConfig({
@@ -558,7 +630,7 @@ export async function pullAllFromSupabase(): Promise<{
 
     return {
       success: true,
-      message: `Berhasil mengimpor data dari Supabase: ${students.length} Siswa, ${teachers.length} Guru, ${classes.length} Kelas, ${attendance.length} Record Presensi.`,
+      message: `Berhasil mengimpor data dari Supabase: ${students.length} Siswa, ${teachers.length} Guru, ${classes.length} Kelas, ${attendance.length} Record Presensi${settings ? ', Identitas Sekolah' : ''}.`,
       data: fetchedData
     };
   } catch (err: any) {

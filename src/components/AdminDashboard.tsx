@@ -236,7 +236,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                        s.classId === masterClassFilter ||
                        (selectedClassObj && s.className && s.className.trim().toLowerCase() === selectedClassObj.name.trim().toLowerCase());
     return matchSearch && matchClass;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 
   // Filtered Reports
   const filteredReports = attendanceRecords.filter(rec => {
@@ -2277,7 +2277,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           s.nisn.includes(classDetailSearch) ||
                           s.parentName.toLowerCase().includes(classDetailSearch.toLowerCase());
                         return matchClass && matchSearch;
-                      });
+                      }).sort((a, b) => a.name.localeCompare(b.name, 'id', { sensitivity: 'base' }));
 
                       if (classStudents.length === 0) {
                         return (

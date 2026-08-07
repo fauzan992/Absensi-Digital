@@ -99,7 +99,7 @@ const persistData = () => {
   saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, bkNotes: bkNotesDB, settings: schoolSettingsDB });
   const cfg = loadSupabaseConfig();
   if (cfg.autoSync && cfg.url && cfg.anonKey && cfg.status === 'connected') {
-    pushAllToSupabase({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB })
+    pushAllToSupabase({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, settings: schoolSettingsDB })
       .catch(err => console.error('Auto-sync to Supabase background error:', err));
   }
 };
@@ -157,11 +157,22 @@ async function startServer() {
   // ==================== API ROUTES ====================
 
   // Settings Endpoints
-  app.get('/api/settings', (req, res) => {
+  app.get('/api/settings', async (req, res) => {
+    const cfg = loadSupabaseConfig();
+    if (cfg.url && cfg.anonKey && cfg.status === 'connected') {
+      try {
+        const pulled = await pullAllFromSupabase();
+        if (pulled.success && pulled.data?.settings) {
+          schoolSettingsDB = { ...schoolSettingsDB, ...pulled.data.settings };
+        }
+      } catch (e) {
+        console.warn('Error syncing settings from Supabase on GET /api/settings:', e);
+      }
+    }
     res.json({ success: true, settings: schoolSettingsDB });
   });
 
-  app.post('/api/settings', (req, res) => {
+  app.post('/api/settings', async (req, res) => {
     const {
       namaSekolah,
       subNamaSekolah,
@@ -1278,7 +1289,8 @@ async function startServer() {
         classes: classesDB,
         teachers: teachersDB,
         students: studentsDB,
-        attendance: attendanceDB
+        attendance: attendanceDB,
+        settings: schoolSettingsDB
       });
 
       if (result.success) {
@@ -1300,8 +1312,9 @@ async function startServer() {
         if (result.data.teachers.length > 0) teachersDB = result.data.teachers;
         if (result.data.students.length > 0) studentsDB = result.data.students;
         if (result.data.attendance.length > 0) attendanceDB = result.data.attendance;
+        if (result.data.settings) schoolSettingsDB = { ...schoolSettingsDB, ...result.data.settings };
 
-        saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB });
+        saveLocalDBBackup({ classes: classesDB, teachers: teachersDB, students: studentsDB, attendance: attendanceDB, bkNotes: bkNotesDB, settings: schoolSettingsDB });
 
         res.json({
           success: true,

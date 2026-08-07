@@ -139,7 +139,7 @@ export const BKCounselingSection: React.FC<BKCounselingSectionProps> = ({
         item.student.className.toLowerCase().includes(searchQuery.toLowerCase());
 
       return matchClass && matchRisk && matchSearch;
-    });
+    }).sort((a, b) => a.student.name.localeCompare(b.student.name, 'id', { sensitivity: 'base' }));
   }, [studentRiskList, selectedClass, riskFilter, searchQuery]);
 
   // Overall BK Dashboard Metrics

@@ -205,7 +205,49 @@ export const apiService = {
       settings = res.data.settings;
       saveLocalSettings(settings);
     } else {
-      settings = getLocalSettings();
+      const supabase = getBrowserSupabaseClient();
+      let supabaseSettingsFetched = false;
+      if (supabase) {
+        try {
+          const { data: rawSettings } = await supabase.from('school_settings').select('*').maybeSingle();
+          if (rawSettings) {
+            settings = {
+              namaSekolah: rawSettings.nama_sekolah || "SMA ISLAM RA'IYATUL HUSNAN",
+              subNamaSekolah: rawSettings.sub_nama_sekolah || "WRINGIN BONDOWOSO",
+              npsn: rawSettings.npsn || "20521620",
+              nss: rawSettings.nss || "302052202010",
+              akreditasi: rawSettings.akreditasi || "B",
+              alamat: rawSettings.alamat || "Jl. Raya Wringin No. 45",
+              desaKelurahan: rawSettings.desa_kelurahan || "Wringin",
+              kecamatan: rawSettings.kecamatan || "Wringin",
+              kabupatenKota: rawSettings.kabupaten_kota || "Bondowoso",
+              provinsi: rawSettings.provinsi || "Jawa Timur",
+              kodePos: rawSettings.kode_pos || "68252",
+              telepon: rawSettings.telepon || "(0332) 421xxx / 081234567890",
+              email: rawSettings.email || "smaislam.raiyatulhusnan@gmail.sch.id",
+              website: rawSettings.website || "www.smaislam-raiyatulhusnan.sch.id",
+              logoUrl: rawSettings.logo_url || "/school-logo.jpg",
+              namaKepalaSekolah: rawSettings.nama_kepala_sekolah || "Ust. Ahmad Fausan, S.Pd",
+              nipKepalaSekolah: rawSettings.nip_kepala_sekolah || "198504122010011002",
+              naunganYayasan: rawSettings.naungan_yayasan || "Yayasan Ra'iyatul Husnan Wringin",
+              jamMasuk: rawSettings.jam_masuk || '07:00',
+              batasTerlambat: rawSettings.batas_terlambat || '07:15',
+              jamPulang: rawSettings.jam_pulang || '14:00',
+              batasPulang: rawSettings.batas_pulang || '16:00',
+              hariLiburRutin: [0, 6],
+              hariLiburKhusus: [],
+              allowAbsenLibur: false
+            };
+            saveLocalSettings(settings);
+            supabaseSettingsFetched = true;
+          }
+        } catch (e) {
+          console.warn('Error fetching school_settings from browser Supabase:', e);
+        }
+      }
+      if (!supabaseSettingsFetched) {
+        settings = getLocalSettings();
+      }
     }
     updateAppFavicon(settings.logoUrl);
     return { success: true, settings };
