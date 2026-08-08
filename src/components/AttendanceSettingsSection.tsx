@@ -33,7 +33,7 @@ export const AttendanceSettingsSection: React.FC<AttendanceSettingsSectionProps>
     telepon: "(0332) 421xxx / 081234567890",
     email: "smaislam.raiyatulhusnan@gmail.sch.id",
     website: "www.smaislam-raiyatulhusnan.sch.id",
-    logoUrl: "/school-logo.jpg",
+    logoUrl: "/school-logo.png",
     namaKepalaSekolah: "Ust. Ahmad Fausan, S.Pd",
     nipKepalaSekolah: "198504122010011002",
     naunganYayasan: "Yayasan Ra'iyatul Husnan Wringin",
@@ -127,7 +127,7 @@ export const AttendanceSettingsSection: React.FC<AttendanceSettingsSectionProps>
   };
 
   const handleResetLogo = () => {
-    setSettings(prev => ({ ...prev, logoUrl: '/school-logo.jpg' }));
+    setSettings(prev => ({ ...prev, logoUrl: '/school-logo.png' }));
   };
 
   const handleToggleRoutineDay = (dayNum: number) => {

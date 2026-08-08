@@ -44,7 +44,7 @@ const DEFAULT_SETTINGS: SchoolSettings = {
   telepon: "(0332) 421xxx / 081234567890",
   email: "smaislam.raiyatulhusnan@gmail.sch.id",
   website: "www.smaislam-raiyatulhusnan.sch.id",
-  logoUrl: "/school-logo.jpg",
+  logoUrl: "/school-logo.png",
   namaKepalaSekolah: "Ust. Ahmad Fausan, S.Pd",
   nipKepalaSekolah: "198504122010011002",
   naunganYayasan: "Yayasan Ra'iyatul Husnan Wringin",
@@ -176,7 +176,7 @@ export async function syncSupabaseCredentialsWithServer() {
 // Dynamic Favicon Helper
 export function updateAppFavicon(logoUrl?: string) {
   if (typeof document === 'undefined') return;
-  const href = logoUrl || "/school-logo.jpg";
+  const href = logoUrl || "/school-logo.png";
   let link: HTMLLinkElement | null = document.querySelector("#app-favicon") || document.querySelector("link[rel*='icon']");
   if (!link) {
     link = document.createElement('link');
@@ -226,7 +226,7 @@ export const apiService = {
               telepon: rawSettings.telepon || "(0332) 421xxx / 081234567890",
               email: rawSettings.email || "smaislam.raiyatulhusnan@gmail.sch.id",
               website: rawSettings.website || "www.smaislam-raiyatulhusnan.sch.id",
-              logoUrl: rawSettings.logo_url || "/school-logo.jpg",
+              logoUrl: rawSettings.logo_url || "/school-logo.png",
               namaKepalaSekolah: rawSettings.nama_kepala_sekolah || "Ust. Ahmad Fausan, S.Pd",
               nipKepalaSekolah: rawSettings.nip_kepala_sekolah || "198504122010011002",
               naunganYayasan: rawSettings.naungan_yayasan || "Yayasan Ra'iyatul Husnan Wringin",

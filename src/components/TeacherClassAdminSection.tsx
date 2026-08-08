@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { User, Student, Teacher, ClassRoom, AttendanceRecord, BKNote, AttendanceStatus } from '../types';
+import { User, Student, Teacher, ClassRoom, AttendanceRecord, BKNote, AttendanceStatus, KBMAssignment } from '../types';
 import { apiService } from '../services/apiService';
 import {
   BookOpen, Users, CheckCircle2, Clock, AlertTriangle, XCircle,
   DoorOpen, HeartHandshake, Save, FileSpreadsheet, Search, RefreshCw,
   Send, Sparkles, Filter, Check, Calendar, FileText, Printer, ArrowRight,
-  Settings, Plus, Edit2, Trash2, ChevronUp, ChevronDown, PlusCircle, RotateCcw
+  Settings, Plus, Edit2, Trash2, ChevronUp, ChevronDown, PlusCircle, RotateCcw,
+  Bell, ClipboardCheck, ListTodo, HelpCircle, CheckSquare, FolderOpen
 } from 'lucide-react';
 
 interface TeacherClassAdminSectionProps {
@@ -16,6 +17,46 @@ interface TeacherClassAdminSectionProps {
   attendanceRecords: AttendanceRecord[];
   onRefreshData: () => void;
 }
+
+const DEFAULT_ASSIGNMENTS: KBMAssignment[] = [
+  {
+    id: 'asg-1',
+    classId: 'class-1',
+    className: 'X IPA 1',
+    subjectName: 'Matematika',
+    teacherName: 'Guru Matematika',
+    givenDate: '2026-08-01',
+    dueDate: '2026-08-08',
+    title: 'Latihan Soal Persamaan & Fungsi Kuadrat',
+    description: 'Kerjakan Soal Latihan Halaman 45 - 47 Nomor 1 sampai 10 di buku catatan/tugas.',
+    status: 'PENDING'
+  },
+  {
+    id: 'asg-2',
+    classId: 'class-1',
+    className: 'X IPA 1',
+    subjectName: 'Bahasa Indonesia',
+    teacherName: 'Guru Bahasa Indonesia',
+    givenDate: '2026-08-02',
+    dueDate: '2026-08-07',
+    title: 'Draf Ringkasan Teks Laporan Hasil Observasi (LHO)',
+    description: 'Menyusun laporan hasil observasi lingkungan sekitar sekolah SMA Islam Ra\'iyatul Husnan Wringin.',
+    status: 'COMPLETED',
+    checkedDate: '2026-08-07'
+  },
+  {
+    id: 'asg-3',
+    classId: 'class-1',
+    className: 'X IPA 1',
+    subjectName: 'Pendidikan Agama Islam',
+    teacherName: 'Guru PAI',
+    givenDate: '2026-08-03',
+    dueDate: '2026-08-08',
+    title: 'Hafalan Surah Al-Hujurat Ayat 10-12 beserta Tajwid',
+    description: 'Hafalan mandiri di rumah dan disetorkan pada jam pembelajaran PAI berikutnya.',
+    status: 'PENDING'
+  }
+];
 
 const DEFAULT_SUBJECTS = [
   'Matematika', 'Fisika', 'Biologi', 'Kimia',
@@ -139,6 +180,118 @@ export const TeacherClassAdminSection: React.FC<TeacherClassAdminSectionProps> =
     if (confirm('Apakah Anda yakin ingin mengembalikan susunan jam pelajaran / sesi ke standar sekolah?')) {
       saveSessions(DEFAULT_SESSIONS);
       setSessionHour(DEFAULT_SESSIONS[0]);
+    }
+  };
+
+  // KBM Assignment Reminders State & Functions
+  const [assignmentsList, setAssignmentsList] = useState<KBMAssignment[]>(() => {
+    try {
+      const saved = localStorage.getItem('app_kbm_assignments');
+      return saved ? JSON.parse(saved) : DEFAULT_ASSIGNMENTS;
+    } catch {
+      return DEFAULT_ASSIGNMENTS;
+    }
+  });
+
+  // State for adding today's assignment
+  const [hasTodayAssignment, setHasTodayAssignment] = useState<boolean>(false);
+  const [todayAssignmentTitle, setTodayAssignmentTitle] = useState<string>('');
+  const [todayAssignmentDesc, setTodayAssignmentDesc] = useState<string>('');
+  const [todayAssignmentDueDate, setTodayAssignmentDueDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  });
+
+  // Modals for Assignment History & New Manual Assignment
+  const [showAssignmentHistoryModal, setShowAssignmentHistoryModal] = useState<boolean>(false);
+  const [showNewAssignmentModal, setShowNewAssignmentModal] = useState<boolean>(false);
+  const [manualAssignmentForm, setManualAssignmentForm] = useState({
+    title: '',
+    description: '',
+    givenDate: kbmDate,
+    dueDate: todayAssignmentDueDate,
+    status: 'PENDING' as KBMAssignment['status']
+  });
+
+  const saveAssignments = (updated: KBMAssignment[]) => {
+    setAssignmentsList(updated);
+    try {
+      localStorage.setItem('app_kbm_assignments', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to save assignments:', e);
+    }
+  };
+
+  const handleMarkAssignmentChecked = (asgId: string) => {
+    const updated = assignmentsList.map(a => {
+      if (a.id === asgId) {
+        return {
+          ...a,
+          status: 'CHECKED_TODAY' as const,
+          checkedDate: kbmDate,
+          notes: `Ditagih & diperiksa saat KBM ${kbmDate}`
+        };
+      }
+      return a;
+    });
+    saveAssignments(updated);
+  };
+
+  const handleMarkAssignmentCompleted = (asgId: string) => {
+    const updated = assignmentsList.map(a => {
+      if (a.id === asgId) {
+        return {
+          ...a,
+          status: 'COMPLETED' as const,
+          checkedDate: kbmDate
+        };
+      }
+      return a;
+    });
+    saveAssignments(updated);
+  };
+
+  const handleAppendAssignmentToJournal = (asg: KBMAssignment) => {
+    const noteSnippet = `[PENAGIHAN TUGAS PERTEMUAN LALU]: Ditagih tugas "${asg.title}" (Diberikan: ${asg.givenDate}).`;
+    if (!classNotes.includes(asg.title)) {
+      setClassNotes(prev => (prev ? `${prev}\n${noteSnippet}` : noteSnippet));
+    }
+  };
+
+  const handleAddManualAssignment = () => {
+    if (!manualAssignmentForm.title.trim()) {
+      alert('Judul tugas tidak boleh kosong.');
+      return;
+    }
+    const currentClassObj = classes.find(c => c.id === selectedClassId);
+    const newAsg: KBMAssignment = {
+      id: `asg-${Date.now()}`,
+      classId: selectedClassId,
+      className: currentClassObj?.name || selectedClassId,
+      subjectName: subjectName.trim(),
+      teacherName: user.name,
+      givenDate: manualAssignmentForm.givenDate || kbmDate,
+      dueDate: manualAssignmentForm.dueDate,
+      title: manualAssignmentForm.title.trim(),
+      description: manualAssignmentForm.description.trim(),
+      status: manualAssignmentForm.status
+    };
+    saveAssignments([newAsg, ...assignmentsList]);
+    setShowNewAssignmentModal(false);
+    setManualAssignmentForm({
+      title: '',
+      description: '',
+      givenDate: kbmDate,
+      dueDate: todayAssignmentDueDate,
+      status: 'PENDING'
+    });
+  };
+
+  const handleDeleteAssignment = (id: string) => {
+    if (confirm('Apakah Anda yakin ingin menghapus catatan tugas ini?')) {
+      const updated = assignmentsList.filter(a => a.id !== id);
+      saveAssignments(updated);
     }
   };
 
@@ -276,7 +429,27 @@ export const TeacherClassAdminSection: React.FC<TeacherClassAdminSectionProps> =
     setIsSaving(false);
 
     if (res.success) {
-      setSaveSuccessMsg(`Presensi KBM & Administrasi Kelas ${currentClassObj?.name} berhasil disimpan!`);
+      // Also save today's assignment if entered
+      if (hasTodayAssignment && todayAssignmentTitle.trim()) {
+        const newAsg: KBMAssignment = {
+          id: `asg-${Date.now()}`,
+          classId: selectedClassId,
+          className: currentClassObj?.name || selectedClassId,
+          subjectName: subjectName.trim(),
+          teacherName: user.name,
+          givenDate: kbmDate,
+          dueDate: todayAssignmentDueDate,
+          title: todayAssignmentTitle.trim(),
+          description: todayAssignmentDesc.trim(),
+          status: 'PENDING'
+        };
+        saveAssignments([newAsg, ...assignmentsList]);
+        setTodayAssignmentTitle('');
+        setTodayAssignmentDesc('');
+        setHasTodayAssignment(false);
+      }
+
+      setSaveSuccessMsg(`Presensi KBM, Jurnal & Tugas Kelas ${currentClassObj?.name || selectedClassId} berhasil disimpan!`);
       onRefreshData();
       setTimeout(() => setSaveSuccessMsg(null), 4000);
     } else {

@@ -108,7 +108,7 @@ export interface SchoolSettings {
   telepon?: string;            // default: "(0332) 421xxx / 081234567890"
   email?: string;              // default: "smaislam.raiyatulhusnan@gmail.sch.id"
   website?: string;            // default: "www.smaislam-raiyatulhusnan.sch.id"
-  logoUrl?: string;            // default: "/school-logo.jpg"
+  logoUrl?: string;            // default: "/school-logo.png"
   namaKepalaSekolah?: string;  // default: "Ust. Ahmad Fausan, S.Pd"
   nipKepalaSekolah?: string;   // default: "198504122010011002"
   naunganYayasan?: string;     // default: "Yayasan Ra'iyatul Husnan"
@@ -138,4 +138,19 @@ export interface BKNote {
   actionTaken: string; // Tindakan / Hasil Kesepakatan
   spLevel?: 'Tanpa SP' | 'SP-1' | 'SP-2' | 'SP-3';
   followUpDate?: string;
+}
+
+export interface KBMAssignment {
+  id: string;
+  classId: string;
+  className: string;
+  subjectName: string;
+  teacherName: string;
+  givenDate: string; // YYYY-MM-DD
+  dueDate?: string;  // YYYY-MM-DD
+  title: string;
+  description?: string;
+  status: 'PENDING' | 'COMPLETED' | 'CHECKED_TODAY';
+  checkedDate?: string;
+  notes?: string;
 }

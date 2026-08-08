@@ -52,7 +52,7 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({
     };
   }, []);
 
-  const srcImage = logoUrlProp || fetchedSettings?.logoUrl || "/school-logo.jpg";
+  const srcImage = logoUrlProp || fetchedSettings?.logoUrl || "/school-logo.png";
   const nameText = schoolNameProp || fetchedSettings?.namaSekolah || "SMA ISLAM RA'IYATUL HUSNAN";
   const subText = subNameProp || fetchedSettings?.subNamaSekolah || "WRINGIN BONDOWOSO";
 
@@ -76,7 +76,7 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({
   return (
     <div className={`inline-flex items-center gap-2.5 ${className}`}>
       <div 
-        className="relative flex items-center justify-center shrink-0 rounded-full overflow-hidden bg-white shadow-sm border border-slate-200"
+        className="relative flex items-center justify-center shrink-0 bg-transparent"
         style={{ width: `${pixelSize}px`, height: `${pixelSize}px` }}
       >
         {!imgError ? (

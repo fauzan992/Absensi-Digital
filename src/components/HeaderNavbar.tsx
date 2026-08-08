@@ -58,7 +58,7 @@ export const HeaderNavbar: React.FC<HeaderNavbarProps> = ({
 
   const schoolName = settings?.namaSekolah || "SMA ISLAM RA'IYATUL HUSNAN";
   const subSchoolName = settings?.subNamaSekolah || "WRINGIN BONDOWOSO";
-  const logoUrl = settings?.logoUrl || "/school-logo.jpg";
+  const logoUrl = settings?.logoUrl || "/school-logo.png";
 
   return (
     <header className="bg-emerald-900 text-white shadow-xl border-b border-emerald-800/80 sticky top-0 z-50 min-h-[64px] flex items-center">

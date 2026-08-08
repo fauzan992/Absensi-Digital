@@ -290,7 +290,7 @@ export async function pullAllFromBrowser(url: string, anonKey: string): Promise<
           telepon: rawSettings.telepon || "(0332) 421xxx",
           email: rawSettings.email || "smaislam.raiyatulhusnan@gmail.sch.id",
           website: rawSettings.website || "www.smaislam-raiyatulhusnan.sch.id",
-          logoUrl: rawSettings.logo_url || "/school-logo.jpg",
+          logoUrl: rawSettings.logo_url || "/school-logo.png",
           namaKepalaSekolah: rawSettings.nama_kepala_sekolah || "Ust. Ahmad Fausan, S.Pd",
           nipKepalaSekolah: rawSettings.nip_kepala_sekolah || "198504122010011002",
           naunganYayasan: rawSettings.naungan_yayasan || "Yayasan Ra'iyatul Husnan Wringin",

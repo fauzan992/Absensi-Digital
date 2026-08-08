@@ -603,7 +603,7 @@ export async function pullAllFromSupabase(): Promise<{
         telepon: st.telepon || "(0332) 421xxx / 081234567890",
         email: st.email || "smaislam.raiyatulhusnan@gmail.sch.id",
         website: st.website || "www.smaislam-raiyatulhusnan.sch.id",
-        logoUrl: st.logo_url || "/school-logo.jpg",
+        logoUrl: st.logo_url || "/school-logo.png",
         namaKepalaSekolah: st.nama_kepala_sekolah || "Ust. Ahmad Fausan, S.Pd",
         nipKepalaSekolah: st.nip_kepala_sekolah || "198504122010011002",
         naunganYayasan: st.naungan_yayasan || "Yayasan Ra'iyatul Husnan Wringin",
