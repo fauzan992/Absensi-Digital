@@ -966,6 +966,237 @@ export const TeacherClassAdminSection: React.FC<TeacherClassAdminSectionProps> =
         </div>
       </div>
 
+      {/* SECTION PENGINGAT TUGAS MATA PELAJARAN PERTEMUAN SEBELUMNYA */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+              <Bell className="w-5 h-5 text-amber-700 animate-bounce" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-slate-900 text-sm">
+                  Pengingat Tugas Pertemuan Sebelumnya ({subjectName} - Kelas {currentClassObj?.name || selectedClassId})
+                </h3>
+                <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300">
+                  Penagihan & Pemeriksaan
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Daftar tugas yang telah diberikan kepada siswa pada pertemuan sebelumnya untuk ditagih, diperiksa, atau dimasukkan dalam catatan KBM hari ini.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAssignmentHistoryModal(true)}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <FolderOpen className="w-4 h-4 text-slate-600" />
+              Semua Riwayat Tugas ({assignmentsList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowNewAssignmentModal(true)}
+              className="px-3.5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <Plus className="w-4 h-4 text-amber-300" />
+              + Buat Tugas Baru
+            </button>
+          </div>
+        </div>
+
+        {/* List of relevant assignments for current selected class/subject */}
+        {(() => {
+          const classAssignments = assignmentsList.filter(
+            a => a.classId === selectedClassId || a.className === currentClassObj?.name
+          );
+          const pendingAssignments = classAssignments.filter(a => a.status === 'PENDING');
+
+          if (classAssignments.length === 0) {
+            return (
+              <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center">
+                <ClipboardCheck className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <h4 className="font-bold text-slate-700 text-xs">Belum ada catatan tugas untuk kelas & mata pelajaran ini.</h4>
+                <p className="text-[11px] text-slate-500 mt-0.5 mb-3">
+                  Anda dapat membuat catatan tugas baru yang akan diberikan kepada siswa hari ini untuk ditagih pada pertemuan berikutnya.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowNewAssignmentModal(true)}
+                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Buat Tugas Baru Hari Ini
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-3">
+              {pendingAssignments.length > 0 && (
+                <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span className="text-xs font-bold text-amber-900">
+                      Ada {pendingAssignments.length} tugas aktif pertemuan sebelumnya yang BELUM diperiksa/ditagih!
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-bold text-amber-800 bg-amber-200/80 px-2.5 py-0.5 rounded-full">
+                    Perlu Penagihan
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {classAssignments.slice(0, 4).map((asg) => {
+                  const isPending = asg.status === 'PENDING';
+                  const isCheckedToday = asg.status === 'CHECKED_TODAY';
+
+                  return (
+                    <div
+                      key={asg.id}
+                      className={`p-4 rounded-2xl border transition-all ${
+                        isPending
+                          ? 'bg-amber-50/40 border-amber-200 shadow-xs'
+                          : isCheckedToday
+                          ? 'bg-emerald-50/50 border-emerald-200'
+                          : 'bg-slate-50 border-slate-200 text-slate-600'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-2 mb-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
+                          {asg.subjectName || subjectName}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {isPending && (
+                            <span className="text-[10px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <Clock className="w-3 h-3 text-amber-700" /> Ditagih Hari Ini
+                            </span>
+                          )}
+                          {isCheckedToday && (
+                            <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/80 px-2 py-0.5 rounded-md flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-700" /> Sudah Ditagih ({asg.checkedDate})
+                            </span>
+                          )}
+                          {asg.status === 'COMPLETED' && (
+                            <span className="text-[10px] font-bold text-slate-600 bg-slate-200 px-2 py-0.5 rounded-md">
+                              Selesai
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <h4 className="font-bold text-slate-900 text-xs leading-snug">{asg.title}</h4>
+                      {asg.description && (
+                        <p className="text-[11px] text-slate-600 mt-1 line-clamp-2 leading-relaxed bg-white/70 p-2 rounded-xl border border-slate-100">
+                          {asg.description}
+                        </p>
+                      )}
+
+                      <div className="mt-2.5 pt-2 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                        <div className="flex items-center gap-2">
+                          <span>Diberikan: <strong className="text-slate-700 font-mono">{asg.givenDate}</strong></span>
+                          {asg.dueDate && (
+                            <span>Batas: <strong className="text-rose-700 font-mono">{asg.dueDate}</strong></span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          {isPending && (
+                            <button
+                              type="button"
+                              onClick={() => handleMarkAssignmentChecked(asg.id)}
+                              className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-colors flex items-center gap-1"
+                              title="Tandai tugas ini telah diperiksa saat KBM berlangsung"
+                            >
+                              <CheckSquare className="w-3 h-3 text-amber-300" /> Tandai Sudah Ditagih
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleAppendAssignmentToJournal(asg)}
+                            className="px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                            title="Masukkan info penagihan tugas ini ke Jurnal Mengajar Hari Ini"
+                          >
+                            + Ke Jurnal KBM
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAssignment(asg.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Hapus Catatan Tugas"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Quick Input Form for New Assignment given today */}
+              <div className="mt-3 pt-3 border-t border-slate-100 bg-slate-50 p-3.5 rounded-2xl border">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <ListTodo className="w-4 h-4 text-emerald-700" />
+                    Beri Tugas Baru untuk Ditagih pada Pertemuan Berikutnya?
+                  </span>
+                  <label className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasTodayAssignment}
+                      onChange={(e) => setHasTodayAssignment(e.target.checked)}
+                      className="rounded text-emerald-600 focus:ring-emerald-500 w-4 h-4 cursor-pointer"
+                    />
+                    Ya, Beri Tugas Hari Ini
+                  </label>
+                </div>
+
+                {hasTodayAssignment && (
+                  <div className="space-y-2.5 mt-2.5 animate-in fade-in duration-150">
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Judul / Nama Tugas (Cth: Latihan Soal Bab 4 Halaman 80 No. 1-5)"
+                        value={todayAssignmentTitle}
+                        onChange={(e) => setTodayAssignmentTitle(e.target.value)}
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="sm:col-span-2">
+                        <input
+                          type="text"
+                          placeholder="Instruksi / Catatan Pengerjaan Tugas (Opsional)"
+                          value={todayAssignmentDesc}
+                          onChange={(e) => setTodayAssignmentDesc(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="date"
+                          value={todayAssignmentDueDate}
+                          onChange={(e) => setTodayAssignmentDueDate(e.target.value)}
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-emerald-700 font-medium">
+                      *Tugas yang ditulis di sini akan otomatis disimpan bersama Presensi & Jurnal KBM, dan muncul sebagai pengingat di pertemuan berikutnya.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
       {/* Jurnal Mengajar & Catatan Guru Section */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -1117,6 +1348,186 @@ export const TeacherClassAdminSection: React.FC<TeacherClassAdminSectionProps> =
                   Kirim Laporan ke Guru BK
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL BUAT TUGAS BARU MANUAL */}
+      {showNewAssignmentModal && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-gradient-to-r from-emerald-900 to-teal-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <ListTodo className="w-6 h-6 text-amber-300" />
+                <div>
+                  <h3 className="font-extrabold text-sm">Buat Catatan Tugas Mata Pelajaran</h3>
+                  <p className="text-[11px] text-teal-200">Kelas {currentClassObj?.name || selectedClassId} - {subjectName}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowNewAssignmentModal(false)}
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Judul / Materi Tugas</label>
+                <input
+                  type="text"
+                  placeholder="Contoh: Latihan Soal Persamaan Kuadrat Hal 45"
+                  value={manualAssignmentForm.title}
+                  onChange={(e) => setManualAssignmentForm({ ...manualAssignmentForm, title: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Instruksi & Deskripsi Tugas</label>
+                <textarea
+                  rows={3}
+                  placeholder="Instruksi pengerjaan di buku tugas/catatan..."
+                  value={manualAssignmentForm.description}
+                  onChange={(e) => setManualAssignmentForm({ ...manualAssignmentForm, description: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal Diberikan</label>
+                  <input
+                    type="date"
+                    value={manualAssignmentForm.givenDate}
+                    onChange={(e) => setManualAssignmentForm({ ...manualAssignmentForm, givenDate: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Tanggal Penagihan / Batas</label>
+                  <input
+                    type="date"
+                    value={manualAssignmentForm.dueDate}
+                    onChange={(e) => setManualAssignmentForm({ ...manualAssignmentForm, dueDate: e.target.value })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Status Awal</label>
+                <select
+                  value={manualAssignmentForm.status}
+                  onChange={(e) => setManualAssignmentForm({ ...manualAssignmentForm, status: e.target.value as any })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
+                >
+                  <option value="PENDING">PENDING (Perlu Ditagih pada Pertemuan Berikutnya)</option>
+                  <option value="CHECKED_TODAY">CHECKED_TODAY (Sudah Ditagih/Diperiksa Hari Ini)</option>
+                  <option value="COMPLETED">COMPLETED (Selesai)</option>
+                </select>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowNewAssignmentModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs rounded-xl cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddManualAssignment}
+                  className="px-5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white font-extrabold text-xs rounded-xl cursor-pointer shadow-md flex items-center gap-1.5"
+                >
+                  <Plus className="w-4 h-4 text-amber-300" />
+                  Simpan Catatan Tugas
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SEMUA RIWAYAT TUGAS */}
+      {showAssignmentHistoryModal && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <FolderOpen className="w-6 h-6 text-amber-300" />
+                <div>
+                  <h3 className="font-extrabold text-sm">Riwayat & Modul Penagihan Tugas KBM</h3>
+                  <p className="text-[11px] text-teal-200">Seluruh tugas terdaftar untuk Kelas {currentClassObj?.name || selectedClassId}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowAssignmentHistoryModal(false)}
+                className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-xl cursor-pointer"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
+              {assignmentsList.length === 0 ? (
+                <div className="p-8 text-center text-xs text-slate-400">
+                  Belum ada riwayat tugas yang disimpan.
+                </div>
+              ) : (
+                assignmentsList.map((asg) => (
+                  <div key={asg.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 mr-2">
+                          {asg.className || selectedClassId} • {asg.subjectName || subjectName}
+                        </span>
+                        <h4 className="font-extrabold text-slate-900 text-xs inline-block mt-1">{asg.title}</h4>
+                      </div>
+                      <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                        asg.status === 'PENDING'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          : asg.status === 'CHECKED_TODAY'
+                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {asg.status}
+                      </span>
+                    </div>
+
+                    {asg.description && (
+                      <p className="text-xs text-slate-600 bg-white p-2 rounded-xl border border-slate-100">
+                        {asg.description}
+                      </p>
+                    )}
+
+                    <div className="flex justify-between items-center pt-1 text-[11px] text-slate-500">
+                      <span>Diberikan oleh: <strong>{asg.teacherName}</strong> ({asg.givenDate})</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAssignment(asg.id)}
+                        className="text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Hapus
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-between items-center">
+              <span className="text-xs text-slate-500 font-medium">Total Tugas: <strong>{assignmentsList.length}</strong></span>
+              <button
+                type="button"
+                onClick={() => setShowAssignmentHistoryModal(false)}
+                className="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold cursor-pointer"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>
