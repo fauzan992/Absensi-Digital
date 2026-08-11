@@ -8,7 +8,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { GuruDashboard } from './components/GuruDashboard';
 import { WaliMuridDashboard } from './components/WaliMuridDashboard';
 import { BKDashboard } from './components/BKDashboard';
-import { Shield, GraduationCap, Heart, Barcode, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Shield, GraduationCap, Heart, QrCode, CheckCircle2, RefreshCw } from 'lucide-react';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -193,7 +193,7 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-slate-900 text-slate-400 text-xs py-4 border-t border-slate-800 text-center relative z-10">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
-          <span>© {new Date().getFullYear()} <strong>SMA Islam Ra'iyatul Husnan</strong>. Sistem Absensi Digital Barcode NISN.</span>
+          <span>© {new Date().getFullYear()} <strong>SMA Islam Ra'iyatul Husnan</strong>. Sistem Absensi Digital QR Code NISN.</span>
           <span className="text-[11px] text-slate-500">Role Active: <strong className="text-amber-400 capitalize">{user ? user.role : 'Guest'}</strong></span>
         </div>
       </footer>

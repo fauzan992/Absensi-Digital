@@ -813,7 +813,7 @@ export const apiService = {
   },
 
   // Attendance Scanning
-  async scanBarcode(nisn: string, status: AttendanceStatus = 'Hadir', notes: string = '', recordedBy: string = 'Scan Barcode', recordedByRole: string = 'admin'): Promise<{ success: boolean; record?: AttendanceRecord; student?: Student; error?: string; message?: string }> {
+  async scanBarcode(nisn: string, status: AttendanceStatus = 'Hadir', notes: string = '', recordedBy: string = 'Scan QR Code', recordedByRole: string = 'admin'): Promise<{ success: boolean; record?: AttendanceRecord; student?: Student; error?: string; message?: string }> {
     const res = await safeFetchJson<{ record?: AttendanceRecord; student?: Student; message?: string }>('/api/attendance/scan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -491,9 +491,9 @@ export async function pushAllToSupabase(data: {
       message: `Berhasil mengekspor data ke Supabase: ${data.students.length} Siswa, ${data.teachers.length} Guru, ${data.classes.length} Kelas, ${data.attendance.length} Absensi, Identitas Sekolah.`
     };
   } catch (err: any) {
-    console.error('Error pushAllToSupabase:', err);
-    saveSupabaseConfig({ status: 'error', errorMessage: err.message });
-    return { success: false, message: `Gagal sinkronisasi Supabase: ${err.message}` };
+    console.warn('[Supabase Sync Push] Warning:', err.message || err);
+    saveSupabaseConfig({ status: 'disconnected', errorMessage: err.message || 'Tidak dapat terhubung ke Supabase' });
+    return { success: false, message: `Gagal sinkronisasi Supabase (menggunakan penyimpanan lokal): ${err.message}` };
   }
 }
 
@@ -511,6 +511,20 @@ export async function pullAllFromSupabase(): Promise<{
 }> {
   const supabase = getSupabaseClient();
   if (!supabase) {
+    const backup = readLocalDBBackup();
+    if (backup && (backup.classes || backup.students)) {
+      return {
+        success: true,
+        message: 'Supabase belum dikonfigurasi. Menggunakan data lokal.',
+        data: {
+          classes: backup.classes || [],
+          teachers: backup.teachers || [],
+          students: backup.students || [],
+          attendance: backup.attendance || [],
+          settings: backup.settings
+        }
+      };
+    }
     return { success: false, message: 'Supabase URL atau Anon Key belum diatur.' };
   }
 
@@ -539,7 +553,7 @@ export async function pullAllFromSupabase(): Promise<{
 
     const savedBackup = readLocalDBBackup();
     const teachers: Teacher[] = (resTeachers.data || []).map(t => {
-      const existing = (savedBackup.teachers || []).find(l => l.id === t.id || l.nip === t.nip);
+      const existing = (savedBackup?.teachers || []).find(l => l.id === t.id || l.nip === t.nip);
       return {
         id: t.id,
         nip: t.nip,
@@ -634,8 +648,23 @@ export async function pullAllFromSupabase(): Promise<{
       data: fetchedData
     };
   } catch (err: any) {
-    console.error('Error pullAllFromSupabase:', err);
-    saveSupabaseConfig({ status: 'error', errorMessage: err.message });
+    console.warn('[Supabase Sync Pull] Unable to connect to Supabase:', err.message || err);
+    saveSupabaseConfig({ status: 'disconnected', errorMessage: 'Server Supabase tidak dapat terhubung (menggunakan data lokal).' });
+    
+    const backup = readLocalDBBackup();
+    if (backup && (backup.classes || backup.students)) {
+      return {
+        success: true,
+        message: 'Menggunakan database lokal (Supabase offline).',
+        data: {
+          classes: backup.classes || [],
+          teachers: backup.teachers || [],
+          students: backup.students || [],
+          attendance: backup.attendance || [],
+          settings: backup.settings
+        }
+      };
+    }
     return { success: false, message: `Gagal mengimpor dari Supabase: ${err.message}` };
   }
 }

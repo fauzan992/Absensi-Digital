@@ -791,10 +791,10 @@ async function startServer() {
 
   // Attendance Scanning & Recording
   app.post('/api/attendance/scan', (req, res) => {
-    const { nisn, status = 'Hadir', notes = '', recordedBy = 'Sistem Barcode', recordedByRole = 'admin' } = req.body;
+    const { nisn, status = 'Hadir', notes = '', recordedBy = 'Sistem QR Code', recordedByRole = 'admin' } = req.body;
 
     if (!nisn) {
-      return res.status(400).json({ error: 'Kode Barcode / NISN wajib diisi.' });
+      return res.status(400).json({ error: 'Kode QR Code / NISN wajib diisi.' });
     }
 
     const student = studentsDB.find(s => s.nisn.trim() === nisn.trim());

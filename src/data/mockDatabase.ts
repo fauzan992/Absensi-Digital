@@ -127,7 +127,7 @@ export function generateInitialAttendance(): AttendanceRecord[] {
         time: status === 'Hadir' ? time : '-',
         status,
         notes,
-        recordedBy: 'Sistem Barcode (Piket)',
+        recordedBy: 'Sistem QR Code (Piket)',
         recordedByRole: 'admin'
       });
     });

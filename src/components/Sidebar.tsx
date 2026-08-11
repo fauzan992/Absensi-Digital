@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { SchoolLogo } from './SchoolLogo';
 import {
-  School, Barcode, FileSpreadsheet, Upload, Users, GraduationCap,
+  School, QrCode, FileSpreadsheet, Upload, Users, GraduationCap,
   ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, X, Shield,
   Sparkles, CheckCircle2, UserCheck, LayoutDashboard, Heart, Settings, Clock, Database, Award, HeartHandshake, Building2, BookOpen
 } from 'lucide-react';
@@ -217,7 +217,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {/* 2. SCAN BARCODE NISN MENU */}
+          {/* 2. SCAN QR CODE NISN MENU */}
           <button
             onClick={() => handleNavClick('scan')}
             className={`w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold transition-all cursor-pointer ${
@@ -225,14 +225,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'bg-emerald-800/90 text-white shadow-md border-l-4 border-amber-400'
                 : 'text-emerald-200/90 hover:bg-emerald-900/60 hover:text-white'
             }`}
-            title="Scan Barcode NISN"
+            title="Scan QR Code NISN"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="relative shrink-0">
-                <Barcode className="w-5 h-5 text-emerald-300" />
+                <QrCode className="w-5 h-5 text-emerald-300" />
                 <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-400 rounded-full animate-ping"></span>
               </div>
-              {isOpen && <span className="truncate">Scan Barcode NISN</span>}
+              {isOpen && <span className="truncate">Scan QR Code NISN</span>}
             </div>
             {isOpen && (
               <span className="text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider">

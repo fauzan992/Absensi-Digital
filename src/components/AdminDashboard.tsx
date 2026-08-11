@@ -9,6 +9,8 @@ import { GoogleSheetsManager } from './GoogleSheetsManager';
 import { SupabaseManager } from './SupabaseManager';
 import { DismissalAttendanceSection } from './DismissalAttendanceSection';
 import { BulkStudentCardPrinter } from './BulkStudentCardPrinter';
+import { QRCodeGeneratorModal } from './QRCodeGeneratorModal';
+import { StudentQRCodeCardModal } from './StudentQRCodeCardModal';
 import { AttendanceSettingsSection } from './AttendanceSettingsSection';
 import { MonthlyAttendanceReport } from './MonthlyAttendanceReport';
 import { MainDashboardOverview } from './MainDashboardOverview';
@@ -20,7 +22,7 @@ import {
   Users, UserCheck, GraduationCap, School, Barcode, FileSpreadsheet,
   Plus, Edit, Trash2, Search, Filter, Download, Upload, CheckCircle2,
   XCircle, Clock, AlertTriangle, RefreshCw, Key, ArrowDownToLine, Eye, DoorOpen,
-  Printer, CreditCard, Image as ImageIcon, Camera, X, Award, HeartHandshake
+  Printer, CreditCard, Image as ImageIcon, Camera, X, Award, HeartHandshake, QrCode
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -77,6 +79,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Bulk Student Card Printing state
   const [showBulkPrintModal, setShowBulkPrintModal] = useState(false);
   const [selectedStudentIdsTable, setSelectedStudentIdsTable] = useState<string[]>([]);
+
+  // QR Code Generator Massal state
+  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
+  const [singleQRCodeStudent, setSingleQRCodeStudent] = useState<Student | null>(null);
 
   // Filters for Report & Export
   const [reportsSubTab, setReportsSubTab] = useState<'daily' | 'monthly'>('daily');
@@ -726,10 +732,21 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
 
                 {masterSubTab === 'students' && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        setSingleQRCodeStudent(null);
+                        setShowQRCodeModal(true);
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-extrabold shadow-sm cursor-pointer transition-all border border-slate-800"
+                      title="Buat / Cetak QR Code Hitam Putih Massal"
+                    >
+                      <QrCode className="w-4 h-4 text-emerald-400" />
+                      QR Code Massal
+                    </button>
                     <button
                       onClick={() => setShowBulkPrintModal(true)}
-                      className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer transition-all border border-slate-800"
+                      className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-xl text-xs font-extrabold shadow-sm cursor-pointer transition-all border border-slate-800"
                     >
                       <CreditCard className="w-4 h-4 text-emerald-400" />
                       Cetak Kartu Pelajar Masal
@@ -816,6 +833,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       {selectedStudentIdsTable.length > 0 && (
                         <>
                           <button
+                            onClick={() => {
+                              setSingleQRCodeStudent(null);
+                              setShowQRCodeModal(true);
+                            }}
+                            className="px-3.5 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
+                            title="Generate QR Code Massal Hitam Putih untuk Siswa Terpilih"
+                          >
+                            <QrCode className="w-4 h-4 text-emerald-400" /> QR Code ({selectedStudentIdsTable.length}) Siswa
+                          </button>
+                          <button
                             onClick={() => setShowBulkPrintModal(true)}
                             className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer animate-in fade-in duration-200"
                           >
@@ -862,7 +889,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </th>
                           <th className="p-3">No</th>
                           <th className="p-3">Foto 3x4</th>
-                          <th className="p-3">NISN & Barcode</th>
+                          <th className="p-3">NISN & Code</th>
                           <th className="p-3">Nama Siswa</th>
                           <th className="p-3">L/P</th>
                           <th className="p-3">Kelas</th>
@@ -913,7 +940,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   )}
                                 </td>
                                 <td className="p-3 font-mono font-bold text-emerald-800">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-1.5">
                                     <span>{st.nisn}</span>
                                     <button
                                       onClick={() => setSelectedStudentBarcode(st)}
@@ -922,6 +949,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                     >
                                       <Barcode className="w-3.5 h-3.5" />
                                     </button>
+                                    <button
+                                      onClick={() => {
+                                        setSingleQRCodeStudent(st);
+                                      }}
+                                      title="Generate QR Code Hitam Putih (NISN & Nama)"
+                                      className="p-1 text-slate-800 bg-slate-100 hover:bg-slate-200 rounded border border-slate-300 cursor-pointer"
+                                    >
+                                      <QrCode className="w-3.5 h-3.5" />
+                                    </button>
                                   </div>
                                 </td>
                                 <td className="p-3 font-bold text-slate-900">{st.name}</td>
@@ -929,6 +965,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                 <td className="p-3 font-semibold text-slate-700">{st.className}</td>
                                 <td className="p-3">{st.parentName} ({st.parentPhone})</td>
                                 <td className="p-3 text-right space-x-1">
+                                  <button
+                                    onClick={() => {
+                                      setSingleQRCodeStudent(st);
+                                    }}
+                                    className="p-1.5 text-slate-700 hover:bg-slate-100 rounded-md cursor-pointer"
+                                    title="Generate QR Code Hitam Putih"
+                                  >
+                                    <QrCode className="w-3.5 h-3.5" />
+                                  </button>
                                   <button
                                     onClick={() => handleOpenEditStudent(st)}
                                     className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md cursor-pointer"
@@ -1695,6 +1740,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           photoUrl={selectedStudentBarcode.photoUrl}
           displayMode="card"
           onClose={() => setSelectedStudentBarcode(null)}
+        />
+      )}
+
+      {/* Modal Single Kartu Absen QR Code */}
+      {singleQRCodeStudent && (
+        <StudentQRCodeCardModal
+          student={singleQRCodeStudent}
+          onClose={() => setSingleQRCodeStudent(null)}
+        />
+      )}
+
+      {/* Modal QR Code Generator Massal (Hitam Putih) */}
+      {showQRCodeModal && (
+        <QRCodeGeneratorModal
+          students={students}
+          classes={classes}
+          onClose={() => {
+            setShowQRCodeModal(false);
+          }}
+          initialSelectedIds={
+            selectedStudentIdsTable.length > 0 ? selectedStudentIdsTable : undefined
+          }
         />
       )}
 

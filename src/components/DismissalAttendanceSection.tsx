@@ -169,7 +169,7 @@ export const DismissalAttendanceSection: React.FC<DismissalAttendanceSectionProp
               Verifikasi Kepulangan Siswa Jam Terakhir
             </h3>
             <p className="text-xs text-emerald-100/90 mt-1 max-w-2xl leading-relaxed">
-              Mencatat kehadiran siswa saat jam pelajaran usai tanpa perlu scan barcode. Sistem <strong className="text-amber-300">secara otomatis menyeleksi (centang)</strong> semua siswa yang tercatat <strong className="text-amber-300">Hadir Masuk</strong> hari ini.
+              Mencatat kehadiran siswa saat jam pelajaran usai tanpa perlu scan QR Code. Sistem <strong className="text-amber-300">secara otomatis menyeleksi (centang)</strong> semua siswa yang tercatat <strong className="text-amber-300">Hadir Masuk</strong> hari ini.
             </p>
           </div>
         </div>

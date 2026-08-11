@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   time TEXT NOT NULL,
   status TEXT NOT NULL,
   notes TEXT,
-  recorded_by TEXT DEFAULT 'Scan Barcode',
+  recorded_by TEXT DEFAULT 'Scan QR Code',
   recorded_by_role TEXT DEFAULT 'admin',
   check_out_time TEXT,
   check_out_status TEXT,
